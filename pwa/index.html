@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4f46e5" />
+  <title>Vocab</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── View: Home ──────────────────────────────────────────────────────── -->
+  <div id="view-home" class="view">
+    <header>
+      <h1>Vocab</h1>
+    </header>
+    <main class="home-main">
+      <div class="stats">
+        <div class="stat-card">
+          <span class="stat-number" id="total-words">—</span>
+          <span class="stat-label">total words</span>
+        </div>
+        <div class="stat-card due">
+          <span class="stat-number" id="due-words">—</span>
+          <span class="stat-label">due today</span>
+        </div>
+      </div>
+      <div class="home-actions">
+        <button class="btn btn-primary" id="btn-study">Study Now</button>
+        <button class="btn btn-secondary" id="btn-browse">Browse All Words</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ── View: Study ─────────────────────────────────────────────────────── -->
+  <div id="view-study" class="view hidden">
+    <header>
+      <button class="btn-icon" id="study-back" aria-label="Back">←</button>
+      <h2>Study</h2>
+      <span id="study-progress"></span>
+    </header>
+    <main class="study-main" id="study-main">
+
+      <div id="study-loading" class="centered">Loading…</div>
+
+      <div id="study-empty" class="centered hidden">
+        <p>No words due today! Check back tomorrow.</p>
+        <button class="btn btn-secondary" id="study-done-btn">Back to Home</button>
+      </div>
+
+      <div id="study-done" class="centered hidden">
+        <h2>Session complete!</h2>
+        <p id="study-done-count"></p>
+        <button class="btn btn-primary" id="study-again-btn">Study Again</button>
+        <button class="btn btn-secondary" id="study-home-btn">Home</button>
+      </div>
+
+      <div id="flashcard-area" class="hidden">
+        <div
+          class="flashcard-scene"
+          id="flashcard"
+          role="button"
+          tabindex="0"
+          aria-label="Tap to reveal definition"
+        >
+          <div class="flashcard-card">
+            <div class="flashcard-front">
+              <div class="card-lang" id="card-lang"></div>
+              <div class="card-word" id="card-word"></div>
+              <div class="card-hint">tap to reveal</div>
+            </div>
+            <div class="flashcard-back">
+              <div class="card-definition" id="card-definition"></div>
+              <div class="card-example" id="card-example"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rating-buttons hidden" id="rating-buttons">
+          <p class="rating-label">How well did you remember?</p>
+          <div class="rating-row">
+            <button class="btn-rating btn-rating-again" data-quality="0">Again</button>
+            <button class="btn-rating btn-rating-hard"  data-quality="2">Hard</button>
+            <button class="btn-rating btn-rating-okay"  data-quality="3">Okay</button>
+            <button class="btn-rating btn-rating-good"  data-quality="4">Good</button>
+            <button class="btn-rating btn-rating-easy"  data-quality="5">Easy</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── View: Browse ────────────────────────────────────────────────────── -->
+  <div id="view-browse" class="view hidden">
+    <header>
+      <button class="btn-icon" id="browse-back" aria-label="Back">←</button>
+      <h2>All Words</h2>
+    </header>
+    <main class="browse-main">
+      <div id="browse-loading" class="centered">Loading…</div>
+      <div id="browse-empty" class="centered hidden"><p>No words saved yet.</p></div>
+      <div id="browse-list"></div>
+    </main>
+  </div>
+
+  <!-- Offline banner -->
+  <div id="offline-banner" class="offline-banner hidden">You're offline</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
