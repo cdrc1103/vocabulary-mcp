@@ -18,14 +18,13 @@ A full-stack spaced-repetition vocabulary study system. Claude can push words di
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 
 # Create a .env file
 echo "API_KEY=$(openssl rand -hex 32)" > .env
 echo "DATABASE_PATH=./vocab.db" >> .env
 
-uvicorn main:app --reload
+uv run uvicorn main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
@@ -78,8 +77,7 @@ curl -X DELETE http://localhost:8000/vocabulary/1 -H "X-API-Key: $API_KEY"
 
 ```bash
 cd mcp-server
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 
 cat > .env <<EOF
 VOCAB_API_URL=https://your-app.railway.app
@@ -95,8 +93,8 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 {
   "mcpServers": {
     "vocabulary": {
-      "command": "python",
-      "args": ["/absolute/path/to/vocab-app/mcp-server/server.py"],
+      "command": "uv",
+      "args": ["run", "--directory", "/absolute/path/to/vocab-app/mcp-server", "python", "server.py"],
       "env": {
         "VOCAB_API_URL": "https://your-app.railway.app",
         "VOCAB_API_KEY": "your-api-key-here"
