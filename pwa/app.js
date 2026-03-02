@@ -39,6 +39,14 @@ function showView(name) {
   views[name].classList.remove("hidden");
 }
 
+// ── Shared helper ─────────────────────────────────────────────────────────────
+function showErrorMsg(container, onlineMsg, offlineMsg) {
+  const msg = document.createElement("p");
+  msg.className = "error-msg";
+  msg.textContent = navigator.onLine ? onlineMsg : offlineMsg;
+  container.appendChild(msg);
+}
+
 // ── Home view ─────────────────────────────────────────────────────────────────
 async function loadHome() {
   showView("home");
@@ -75,33 +83,50 @@ let dueCards = [];
 let currentCardIndex = 0;
 let reviewedCount = 0;
 
+// Cache all study-panel elements to avoid repeated getElementById calls
+const studyEl = {
+  loading:    document.getElementById("study-loading"),
+  empty:      document.getElementById("study-empty"),
+  done:       document.getElementById("study-done"),
+  area:       document.getElementById("flashcard-area"),
+  progress:   document.getElementById("study-progress"),
+  doneCount:  document.getElementById("study-done-count"),
+  main:       document.getElementById("study-main"),
+  lang:       document.getElementById("card-lang"),
+  word:       document.getElementById("card-word"),
+  definition: document.getElementById("card-definition"),
+  example:    document.getElementById("card-example"),
+  ratings:    document.getElementById("rating-buttons"),
+};
+
 async function loadStudy() {
   showView("study");
-  document.getElementById("study-loading").classList.remove("hidden");
-  document.getElementById("study-empty").classList.add("hidden");
-  document.getElementById("study-done").classList.add("hidden");
-  document.getElementById("flashcard-area").classList.add("hidden");
-  document.getElementById("study-progress").textContent = "";
+  // Clear any leftover error messages from a previous failed load
+  studyEl.main.querySelectorAll(".error-msg").forEach((el) => el.remove());
+  studyEl.loading.classList.remove("hidden");
+  studyEl.empty.classList.add("hidden");
+  studyEl.done.classList.add("hidden");
+  studyEl.area.classList.add("hidden");
+  studyEl.progress.textContent = "";
 
   try {
     const res = await apiFetch("/vocabulary/due");
     if (!res.ok) throw new Error("Failed to load due words");
     dueCards = await res.json();
   } catch {
-    document.getElementById("study-loading").classList.add("hidden");
-    const msg = document.createElement("p");
-    msg.className = "error-msg";
-    msg.textContent = navigator.onLine
-      ? "Failed to load words. Please try again."
-      : "You're offline. Please reconnect to study.";
-    document.getElementById("study-main").appendChild(msg);
+    studyEl.loading.classList.add("hidden");
+    showErrorMsg(
+      studyEl.main,
+      "Failed to load words. Please try again.",
+      "You're offline. Please reconnect to study.",
+    );
     return;
   }
 
-  document.getElementById("study-loading").classList.add("hidden");
+  studyEl.loading.classList.add("hidden");
 
   if (dueCards.length === 0) {
-    document.getElementById("study-empty").classList.remove("hidden");
+    studyEl.empty.classList.remove("hidden");
     return;
   }
 
@@ -112,17 +137,15 @@ async function loadStudy() {
 
 function showCard() {
   const card = dueCards[currentCardIndex];
-  document.getElementById("study-progress").textContent =
-    `${currentCardIndex + 1} / ${dueCards.length}`;
-  document.getElementById("card-lang").textContent = card.language || "";
-  document.getElementById("card-word").textContent = card.word;
-  document.getElementById("card-definition").textContent = card.definition;
-  document.getElementById("card-example").textContent = card.example || "";
+  studyEl.progress.textContent = `${currentCardIndex + 1} / ${dueCards.length}`;
+  studyEl.lang.textContent = card.language || "";
+  studyEl.word.textContent = card.word;
+  studyEl.definition.textContent = card.definition;
+  studyEl.example.textContent = card.example || "";
 
-  const flashcard = document.getElementById("flashcard");
   flashcard.classList.remove("flipped");
-  document.getElementById("rating-buttons").classList.add("hidden");
-  document.getElementById("flashcard-area").classList.remove("hidden");
+  studyEl.ratings.classList.add("hidden");
+  studyEl.area.classList.remove("hidden");
 }
 
 // Flip card on tap / keyboard
@@ -134,11 +157,11 @@ flashcard.addEventListener("keydown", (e) => {
 
 function flipCard() {
   flashcard.classList.add("flipped");
-  document.getElementById("rating-buttons").classList.remove("hidden");
+  studyEl.ratings.classList.remove("hidden");
 }
 
 // Rating buttons
-document.getElementById("rating-buttons").addEventListener("click", async (e) => {
+studyEl.ratings.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-quality]");
   if (!btn) return;
   const quality = parseInt(btn.dataset.quality, 10);
@@ -164,18 +187,42 @@ async function submitReview(id, quality) {
 }
 
 function showStudyDone() {
-  document.getElementById("flashcard-area").classList.add("hidden");
-  document.getElementById("study-done").classList.remove("hidden");
-  document.getElementById("study-done-count").textContent =
+  studyEl.area.classList.add("hidden");
+  studyEl.done.classList.remove("hidden");
+  studyEl.doneCount.textContent =
     `You reviewed ${reviewedCount} word${reviewedCount !== 1 ? "s" : ""}.`;
-  document.getElementById("study-progress").textContent = "";
+  studyEl.progress.textContent = "";
 }
 
 // ── Browse view ───────────────────────────────────────────────────────────────
+const browseList = document.getElementById("browse-list");
+
+// Event delegation: one listener handles all expand-toggle and delete interactions
+browseList.addEventListener("click", async (e) => {
+  const item = e.target.closest(".word-item");
+  if (!item) return;
+
+  if (e.target.closest(".btn-delete")) {
+    const wordName = item.querySelector(".word-title").textContent;
+    if (!confirm(`Delete "${wordName}"?`)) return;
+    try {
+      const res = await apiFetch(`/vocabulary/${item.dataset.id}`, { method: "DELETE" });
+      if (res.ok) item.remove();
+      else alert("Failed to delete word.");
+    } catch {
+      alert("Failed to delete word.");
+    }
+    return;
+  }
+
+  if (e.target.closest(".word-summary")) {
+    item.classList.toggle("expanded");
+  }
+});
+
 async function loadBrowse() {
   showView("browse");
-  const list = document.getElementById("browse-list");
-  list.innerHTML = "";
+  browseList.innerHTML = "";
   document.getElementById("browse-loading").classList.remove("hidden");
   document.getElementById("browse-empty").classList.add("hidden");
 
@@ -187,10 +234,7 @@ async function loadBrowse() {
     words = data.words;
   } catch {
     document.getElementById("browse-loading").classList.add("hidden");
-    const msg = document.createElement("p");
-    msg.className = "error-msg";
-    msg.textContent = navigator.onLine ? "Failed to load words." : "You're offline.";
-    list.appendChild(msg);
+    showErrorMsg(browseList, "Failed to load words.", "You're offline.");
     return;
   }
 
@@ -209,6 +253,8 @@ async function loadBrowse() {
     groups[lang].push(w);
   }
 
+  // Build into a DocumentFragment to batch all DOM writes into one reflow
+  const frag = document.createDocumentFragment();
   for (const [lang, langWords] of Object.entries(groups).sort()) {
     const group = document.createElement("div");
     group.className = "lang-group";
@@ -217,8 +263,9 @@ async function loadBrowse() {
     heading.textContent = lang;
     group.appendChild(heading);
     for (const word of langWords) group.appendChild(buildWordItem(word));
-    list.appendChild(group);
+    frag.appendChild(group);
   }
+  browseList.appendChild(frag);
 }
 
 function buildWordItem(word) {
@@ -226,17 +273,27 @@ function buildWordItem(word) {
   item.className = "word-item";
   item.dataset.id = word.id;
 
+  // Use textContent throughout — no escaping needed, no XSS possible
+  const wordTitle = document.createElement("div");
+  wordTitle.className = "word-title";
+  wordTitle.textContent = word.word;
+  const wordDef = document.createElement("div");
+  wordDef.className = "word-def";
+  wordDef.textContent = word.definition;
+  const wordText = document.createElement("div");
+  wordText.className = "word-text";
+  wordText.append(wordTitle, wordDef);
+
+  const wordDue = document.createElement("span");
+  wordDue.className = "word-due";
+  wordDue.textContent = word.next_review;
+  const expandIcon = document.createElement("span");
+  expandIcon.className = "word-expand-icon";
+  expandIcon.textContent = "▾";
+
   const summary = document.createElement("div");
   summary.className = "word-summary";
-  summary.innerHTML = `
-    <div class="word-text">
-      <div class="word-title">${escHtml(word.word)}</div>
-      <div class="word-def">${escHtml(word.definition)}</div>
-    </div>
-    <span class="word-due">${word.next_review}</span>
-    <span class="word-expand-icon">▾</span>
-  `;
-  summary.addEventListener("click", () => item.classList.toggle("expanded"));
+  summary.append(wordText, wordDue, expandIcon);
 
   const detail = document.createElement("div");
   detail.className = "word-detail";
@@ -246,37 +303,13 @@ function buildWordItem(word) {
     ex.textContent = `"${word.example}"`;
     detail.appendChild(ex);
   }
-
   const delBtn = document.createElement("button");
   delBtn.className = "btn-delete";
   delBtn.textContent = "Delete";
-  delBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (!confirm(`Delete "${word.word}"?`)) return;
-    try {
-      const res = await apiFetch(`/vocabulary/${word.id}`, { method: "DELETE" });
-      if (res.ok) {
-        item.remove();
-      } else {
-        alert("Failed to delete word.");
-      }
-    } catch {
-      alert("Failed to delete word.");
-    }
-  });
   detail.appendChild(delBtn);
 
-  item.appendChild(summary);
-  item.appendChild(detail);
+  item.append(summary, detail);
   return item;
-}
-
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

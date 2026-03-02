@@ -48,7 +48,7 @@ self.addEventListener("fetch", (event) => {
 
 async function networkFirst(request) {
   try {
-    const response = await fetch(request.clone());
+    const response = await fetch(request); // GET-only path; no body to clone
     const cache = await caches.open(API_CACHE_NAME);
     cache.put(request, response.clone());
     return response;
