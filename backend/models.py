@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -28,4 +28,4 @@ class VocabularyListResponse(BaseModel):
 
 
 class ReviewRequest(BaseModel):
-    quality: int  # 0-5 (SM-2 standard)
+    quality: int = Field(..., ge=0, le=5)  # SM-2 standard

@@ -17,14 +17,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Vocabulary API", lifespan=lifespan)
 
+# APIKeyMiddleware must be added first so CORSMiddleware is outermost.
+# Starlette executes middleware LIFO, so the last add_middleware call runs first.
+# CORS must be outermost to handle OPTIONS preflight before auth is checked.
+app.add_middleware(APIKeyMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.add_middleware(APIKeyMiddleware)
 
 
 @app.get("/health")
@@ -59,8 +62,6 @@ def due_vocabulary():
 
 @app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)
 def submit_review(word_id: int, payload: ReviewRequest):
-    if not (0 <= payload.quality <= 5):
-        raise HTTPException(status_code=422, detail="quality must be between 0 and 5")
     result = review_word(word_id=word_id, quality=payload.quality)
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")

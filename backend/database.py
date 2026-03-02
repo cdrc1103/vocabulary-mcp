@@ -1,6 +1,6 @@
 import sqlite3
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 
@@ -30,7 +30,6 @@ def init_db():
                 next_review     TEXT DEFAULT (date('now'))
             )
         """)
-        conn.commit()
 
 
 def apply_sm2(interval: int, ease: float, reps: int, quality: int):
@@ -50,38 +49,44 @@ def apply_sm2(interval: int, ease: float, reps: int, quality: int):
 
 
 def insert_word(word: str, definition: str, example: Optional[str], language: str) -> dict:
+    # Compute defaults in Python so we can return them without a second SELECT.
+    created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    next_review = date.today().isoformat()
     with get_connection() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO vocabulary (word, definition, example, language)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO vocabulary (word, definition, example, language, created_at, next_review)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (word, definition, example, language),
+            (word, definition, example, language, created_at, next_review),
         )
-        conn.commit()
-        row = conn.execute(
-            "SELECT * FROM vocabulary WHERE id = ?", (cursor.lastrowid,)
-        ).fetchone()
-        return dict(row)
+    return {
+        "id": cursor.lastrowid,
+        "word": word,
+        "definition": definition,
+        "example": example,
+        "language": language,
+        "created_at": created_at,
+        "next_review": next_review,
+        "interval": 1,
+        "ease_factor": 2.5,
+        "repetitions": 0,
+    }
 
 
 def get_words(language: Optional[str], limit: int, offset: int) -> dict:
+    where = "WHERE language = ?" if language else ""
+    count_params = (language,) if language else ()
+    page_params = (language, limit, offset) if language else (limit, offset)
     with get_connection() as conn:
-        if language:
-            total = conn.execute(
-                "SELECT COUNT(*) FROM vocabulary WHERE language = ?", (language,)
-            ).fetchone()[0]
-            rows = conn.execute(
-                "SELECT * FROM vocabulary WHERE language = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (language, limit, offset),
-            ).fetchall()
-        else:
-            total = conn.execute("SELECT COUNT(*) FROM vocabulary").fetchone()[0]
-            rows = conn.execute(
-                "SELECT * FROM vocabulary ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (limit, offset),
-            ).fetchall()
-        return {"total": total, "words": [dict(r) for r in rows]}
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM vocabulary {where}", count_params
+        ).fetchone()[0]
+        rows = conn.execute(
+            f"SELECT * FROM vocabulary {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            page_params,
+        ).fetchall()
+    return {"total": total, "words": [dict(r) for r in rows]}
 
 
 def get_due_words() -> list[dict]:
@@ -116,12 +121,9 @@ def review_word(word_id: int, quality: int) -> Optional[dict]:
             """,
             (new_interval, new_ease, new_reps, next_review, word_id),
         )
-        conn.commit()
 
-        updated = conn.execute(
-            "SELECT * FROM vocabulary WHERE id = ?", (word_id,)
-        ).fetchone()
-        return dict(updated)
+    # Return merged dict from the pre-fetch + computed SM-2 values — no second SELECT needed.
+    return {**row, "interval": new_interval, "ease_factor": new_ease, "repetitions": new_reps, "next_review": next_review}
 
 
 def delete_word(word_id: int) -> bool:
@@ -129,5 +131,4 @@ def delete_word(word_id: int) -> bool:
         result = conn.execute(
             "DELETE FROM vocabulary WHERE id = ?", (word_id,)
         )
-        conn.commit()
         return result.rowcount > 0

@@ -1,10 +1,12 @@
 import os
-from fastapi import Request, HTTPException
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
 API_KEY = os.getenv("API_KEY", "")
+if not API_KEY:
+    raise RuntimeError("API_KEY environment variable is not set")
 
 UNPROTECTED_PATHS = {"/health"}
 
