@@ -20,6 +20,10 @@ body {
 header {
   display: flex; align-items: center; gap: 1rem;
   padding: 1rem 1.25rem;
+  /* safe-area: push content below notch in standalone PWA mode */
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
   background: #4f46e5;
   color: white;
   position: sticky; top: 0; z-index: 10;
@@ -40,6 +44,9 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .btn-icon {
   background: none; border: none; color: white; font-size: 1.4rem;
   cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 0.5rem;
+  /* ensure 44×44px minimum touch target */
+  min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
 }
 .btn-icon:hover { background: rgba(255,255,255,0.15); }
 
@@ -60,7 +67,8 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .study-main { flex: 1; padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 1.5rem; }
 .flashcard-scene {
   width: 100%; max-width: 420px; margin: 0 auto;
-  height: 260px; perspective: 1000px; cursor: pointer;
+  /* clamp so the card never overflows on landscape phones */
+  height: clamp(200px, 40vh, 320px); perspective: 1000px; cursor: pointer;
 }
 .flashcard-card {
   width: 100%; height: 100%;
@@ -81,7 +89,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .flashcard-front { background: white; }
 .flashcard-back { background: #ede9fe; transform: rotateY(180deg); }
 .card-lang { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; margin-bottom: 0.5rem; }
-.card-word { font-size: 2rem; font-weight: 700; color: #1e1b4b; }
+.card-word { font-size: 2rem; font-weight: 700; color: #1e1b4b; word-break: break-word; overflow-wrap: anywhere; }
 .card-hint { margin-top: 1rem; font-size: 0.8rem; color: #9ca3af; }
 .card-definition { font-size: 1.1rem; color: #1e1b4b; font-weight: 500; margin-bottom: 1rem; }
 .card-example { font-size: 0.9rem; color: #6b7280; font-style: italic; }
@@ -91,9 +99,10 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .rating-label { text-align: center; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem; }
 .rating-row { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
 .btn-rating {
-  flex: 1; min-width: 60px; padding: 0.6rem 0.25rem;
+  flex: 1; min-width: 0; padding: 0.6rem 0.25rem;
   border: none; border-radius: 0.75rem; font-size: 0.85rem; font-weight: 600;
   cursor: pointer; transition: transform 0.1s;
+  min-height: 44px; /* 44px minimum touch target */
 }
 .btn-rating:active { transform: scale(0.95); }
 .btn-rating-again { background: #fee2e2; color: #b91c1c; }
@@ -138,6 +147,8 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   position: fixed; bottom: 0; left: 0; right: 0;
   background: #374151; color: white;
   text-align: center; padding: 0.6rem; font-size: 0.85rem; z-index: 100;
+  /* push above home-indicator on iPhone */
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
 }
 
 /* ===== Error message ===== */
@@ -145,4 +156,45 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   background: #fee2e2; color: #b91c1c;
   padding: 0.75rem 1rem; border-radius: 0.75rem;
   font-size: 0.9rem; text-align: center; margin: 0.5rem 0;
+}
+
+/* ===== Landscape phones: reduce heights so nothing overflows ===== */
+@media (max-height: 500px) and (orientation: landscape) {
+  .home-main { padding: 1rem 1.25rem; gap: 1rem; }
+  .stat-number { font-size: 1.75rem; }
+  .stat-card { padding: 1rem; }
+  .centered { min-height: 40vh; }
+}
+
+/* ===== Tablet and up (≥640px): center content in a max-width column ===== */
+@media (min-width: 640px) {
+  body { background: #eef0ff; }
+
+  /* Wrap each view in a centered column */
+  .view {
+    max-width: 640px;
+    margin: 0 auto;
+    box-shadow: 0 0 60px rgba(79,70,229,0.1);
+    background: #f8f8ff;
+  }
+
+  header {
+    /* Remove safe-area padding on wide viewports — no notch concern */
+    padding-top: 1rem;
+    border-radius: 0 0 0 0; /* keep square for the column card */
+  }
+
+  .flashcard-scene { height: 300px; }
+  .card-word { font-size: 2.5rem; }
+  .stat-number { font-size: 3rem; }
+
+  .browse-main { padding: 1.5rem 2rem; }
+
+  .offline-banner {
+    max-width: 640px;
+    left: 50%; right: auto;
+    transform: translateX(-50%);
+    border-radius: 0.5rem 0.5rem 0 0;
+    padding-bottom: 0.6rem;
+  }
 }
