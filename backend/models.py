@@ -1,11 +1,10 @@
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class VocabularyCreate(BaseModel):
     word: str
     definition: str
-    example: Optional[str] = None
+    example: str | None = None
     language: str = "unknown"
 
 
@@ -13,7 +12,7 @@ class VocabularyResponse(BaseModel):
     id: int
     word: str
     definition: str
-    example: Optional[str] = None
+    example: str | None = None
     language: str
     created_at: str
     next_review: str
@@ -29,3 +28,7 @@ class VocabularyListResponse(BaseModel):
 
 class ReviewRequest(BaseModel):
     quality: int = Field(..., ge=0, le=5)  # SM-2 standard
+
+
+class LoginRequest(BaseModel):
+    password: str

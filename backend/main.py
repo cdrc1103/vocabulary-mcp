@@ -1,12 +1,16 @@
 from contextlib import asynccontextmanager
-from typing import Optional
 
+from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
+from database import delete_word, get_due_words, get_words, init_db, insert_word, review_word
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-
-from auth import APIKeyMiddleware
-from database import delete_word, get_due_words, get_words, init_db, insert_word, review_word
-from models import ReviewRequest, VocabularyCreate, VocabularyListResponse, VocabularyResponse
+from models import (
+    LoginRequest,
+    ReviewRequest,
+    VocabularyCreate,
+    VocabularyListResponse,
+    VocabularyResponse,
+)
 
 
 @asynccontextmanager
@@ -35,6 +39,13 @@ def health():
     return {"status": "ok"}
 
 
+@app.post("/auth/login")
+def login(payload: LoginRequest):
+    if payload.password != PWA_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid password")
+    return {"token": create_token(), "token_type": "bearer"}
+
+
 @app.post("/vocabulary", response_model=VocabularyResponse, status_code=201)
 def add_vocabulary(payload: VocabularyCreate):
     word = insert_word(
@@ -48,7 +59,7 @@ def add_vocabulary(payload: VocabularyCreate):
 
 @app.get("/vocabulary", response_model=VocabularyListResponse)
 def list_vocabulary(
-    language: Optional[str] = Query(None),
+    language: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):

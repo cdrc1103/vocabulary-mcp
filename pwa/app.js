@@ -1,16 +1,35 @@
 // ── API config ────────────────────────────────────────────────────────────────
 const API_URL = "https://your-app.railway.app";
-const API_KEY = "your-api-key-here";
+
+const TOKEN_KEY = "vocab_token";
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
 
 async function apiFetch(path, options = {}) {
-  return fetch(`${API_URL}${path}`, {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": API_KEY,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
   });
+  if (res.status === 401) {
+    clearToken();
+    showLogin();
+  }
+  return res;
 }
 
 // ── Service worker registration ───────────────────────────────────────────────
@@ -26,6 +45,43 @@ function updateOnlineStatus() {
 window.addEventListener("online", updateOnlineStatus);
 window.addEventListener("offline", updateOnlineStatus);
 updateOnlineStatus();
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+const loginView = document.getElementById("view-login");
+const loginForm = document.getElementById("login-form");
+const loginError = document.getElementById("login-error");
+
+function showLogin() {
+  loginView.classList.remove("hidden");
+  document.getElementById("login-password").value = "";
+  loginError.classList.add("hidden");
+}
+
+function hideLogin() {
+  loginView.classList.add("hidden");
+}
+
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const password = document.getElementById("login-password").value;
+  loginError.classList.add("hidden");
+
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+
+  if (res.ok) {
+    const { token } = await res.json();
+    setToken(token);
+    hideLogin();
+    loadHome();
+  } else {
+    loginError.classList.remove("hidden");
+    document.getElementById("login-password").select();
+  }
+});
 
 // ── View switching ────────────────────────────────────────────────────────────
 const views = {
@@ -70,6 +126,10 @@ async function loadHome() {
   }
 }
 
+document.getElementById("btn-logout").addEventListener("click", () => {
+  clearToken();
+  showLogin();
+});
 document.getElementById("btn-study").addEventListener("click", loadStudy);
 document.getElementById("btn-browse").addEventListener("click", loadBrowse);
 document.getElementById("study-back").addEventListener("click", loadHome);
@@ -313,4 +373,9 @@ function buildWordItem(word) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-loadHome();
+if (getToken()) {
+  hideLogin();
+  loadHome();
+} else {
+  showLogin();
+}

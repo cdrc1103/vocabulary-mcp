@@ -1,8 +1,6 @@
-import sqlite3
 import os
-from datetime import date, datetime, timedelta
-from typing import Optional
-
+import sqlite3
+from datetime import UTC, date, datetime, timedelta
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "./vocab.db")
 
@@ -48,9 +46,9 @@ def apply_sm2(interval: int, ease: float, reps: int, quality: int):
         return new_interval, new_ease, reps + 1
 
 
-def insert_word(word: str, definition: str, example: Optional[str], language: str) -> dict:
+def insert_word(word: str, definition: str, example: str | None, language: str) -> dict:
     # Compute defaults in Python so we can return them without a second SELECT.
-    created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    created_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     next_review = date.today().isoformat()
     with get_connection() as conn:
         cursor = conn.execute(
@@ -74,14 +72,12 @@ def insert_word(word: str, definition: str, example: Optional[str], language: st
     }
 
 
-def get_words(language: Optional[str], limit: int, offset: int) -> dict:
+def get_words(language: str | None, limit: int, offset: int) -> dict:
     where = "WHERE language = ?" if language else ""
     count_params = (language,) if language else ()
     page_params = (language, limit, offset) if language else (limit, offset)
     with get_connection() as conn:
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM vocabulary {where}", count_params
-        ).fetchone()[0]
+        total = conn.execute(f"SELECT COUNT(*) FROM vocabulary {where}", count_params).fetchone()[0]
         rows = conn.execute(
             f"SELECT * FROM vocabulary {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
             page_params,
@@ -99,11 +95,9 @@ def get_due_words() -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def review_word(word_id: int, quality: int) -> Optional[dict]:
+def review_word(word_id: int, quality: int) -> dict | None:
     with get_connection() as conn:
-        row = conn.execute(
-            "SELECT * FROM vocabulary WHERE id = ?", (word_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM vocabulary WHERE id = ?", (word_id,)).fetchone()
         if row is None:
             return None
 
@@ -123,12 +117,16 @@ def review_word(word_id: int, quality: int) -> Optional[dict]:
         )
 
     # Return merged dict from the pre-fetch + computed SM-2 values — no second SELECT needed.
-    return {**row, "interval": new_interval, "ease_factor": new_ease, "repetitions": new_reps, "next_review": next_review}
+    return {
+        **row,
+        "interval": new_interval,
+        "ease_factor": new_ease,
+        "repetitions": new_reps,
+        "next_review": next_review,
+    }
 
 
 def delete_word(word_id: int) -> bool:
     with get_connection() as conn:
-        result = conn.execute(
-            "DELETE FROM vocabulary WHERE id = ?", (word_id,)
-        )
+        result = conn.execute("DELETE FROM vocabulary WHERE id = ?", (word_id,))
         return result.rowcount > 0

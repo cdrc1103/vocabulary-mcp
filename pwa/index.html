@@ -10,10 +10,31 @@
 </head>
 <body>
 
+  <!-- ── View: Login ─────────────────────────────────────────────────────── -->
+  <div id="view-login" class="view login-overlay">
+    <div class="login-card">
+      <h1>Vocab</h1>
+      <p class="login-subtitle">Enter your password to continue.</p>
+      <form id="login-form">
+        <input
+          type="password"
+          id="login-password"
+          class="login-input"
+          placeholder="Password"
+          autocomplete="current-password"
+          required
+        />
+        <button type="submit" class="btn btn-primary login-btn">Unlock</button>
+      </form>
+      <p id="login-error" class="error-msg hidden">Wrong password. Try again.</p>
+    </div>
+  </div>
+
   <!-- ── View: Home ──────────────────────────────────────────────────────── -->
   <div id="view-home" class="view">
     <header>
       <h1>Vocab</h1>
+      <button class="btn-icon" id="btn-logout" aria-label="Log out" title="Log out">⏏</button>
     </header>
     <main class="home-main">
       <div class="stats">

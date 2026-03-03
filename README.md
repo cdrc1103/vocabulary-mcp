@@ -24,7 +24,7 @@ uv sync
 echo "API_KEY=$(openssl rand -hex 32)" > .env
 echo "DATABASE_PATH=./vocab.db" >> .env
 
-uv run uvicorn main:app --reload
+uv run --env-file .env uvicorn main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.

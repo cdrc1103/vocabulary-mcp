@@ -142,6 +142,31 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 }
 .btn-delete:hover { background: #fecaca; }
 
+/* ===== Login overlay ===== */
+.login-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: #4f46e5;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem;
+}
+.login-card {
+  background: white; border-radius: 1.5rem;
+  padding: 2.5rem 2rem; width: 100%; max-width: 360px;
+  display: flex; flex-direction: column; gap: 1.25rem;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+  text-align: center;
+}
+.login-card h1 { font-size: 2rem; font-weight: 700; color: #4f46e5; }
+.login-subtitle { font-size: 0.95rem; color: #6b7280; }
+.login-input {
+  width: 100%; padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb; border-radius: 0.75rem;
+  font-size: 1rem; outline: none;
+  transition: border-color 0.15s;
+}
+.login-input:focus { border-color: #4f46e5; }
+.login-btn { width: 100%; }
+
 /* ===== Offline banner ===== */
 .offline-banner {
   position: fixed; bottom: 0; left: 0; right: 0;
