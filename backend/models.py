@@ -32,3 +32,12 @@ class ReviewRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     password: str
+
+
+class BulkVocabularyCreate(BaseModel):
+    words: list[VocabularyCreate] = Field(min_length=1, max_length=50)
+
+
+class BulkVocabularyResponse(BaseModel):
+    inserted: list[VocabularyResponse]
+    skipped_count: int

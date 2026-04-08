@@ -1,10 +1,20 @@
 from contextlib import asynccontextmanager
 
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
-from database import delete_word, get_due_words, get_words, init_db, insert_word, review_word
+from database import (
+    delete_word,
+    get_due_words,
+    get_words,
+    init_db,
+    insert_word,
+    insert_words_bulk,
+    review_word,
+)
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from models import (
+    BulkVocabularyCreate,
+    BulkVocabularyResponse,
     LoginRequest,
     ReviewRequest,
     VocabularyCreate,
@@ -55,6 +65,12 @@ def add_vocabulary(payload: VocabularyCreate):
         language=payload.language,
     )
     return word
+
+
+@app.post("/vocabulary/bulk", response_model=BulkVocabularyResponse, status_code=201)
+def bulk_add_vocabulary(payload: BulkVocabularyCreate):
+    result = insert_words_bulk([w.model_dump() for w in payload.words])
+    return result
 
 
 @app.get("/vocabulary", response_model=VocabularyListResponse)

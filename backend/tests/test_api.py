@@ -244,6 +244,73 @@ class TestSubmitReview:
         assert r.status_code == 422
 
 
+BULK_PAYLOAD = {
+    "words": [
+        {"word": "bonjour", "definition": "hello", "language": "French"},
+        {
+            "word": "merci",
+            "definition": "thanks",
+            "example": "Merci beaucoup.",
+            "language": "French",
+        },
+        {"word": "oui", "definition": "yes", "language": "French"},
+    ]
+}
+
+
+# ---------------------------------------------------------------------------
+# POST /vocabulary/bulk
+# ---------------------------------------------------------------------------
+
+
+class TestBulkAddVocabulary:
+    def test_bulk_creates_words_returns_201(self, client):
+        r = client.post("/vocabulary/bulk", json=BULK_PAYLOAD, headers=AUTH_HEADERS)
+        assert r.status_code == 201
+        body = r.json()
+        assert len(body["inserted"]) == 3
+        assert body["skipped_count"] == 0
+
+    def test_bulk_skips_duplicates(self, client):
+        client.post(
+            "/vocabulary",
+            json={"word": "bonjour", "definition": "hello", "language": "French"},
+            headers=AUTH_HEADERS,
+        )
+        r = client.post("/vocabulary/bulk", json=BULK_PAYLOAD, headers=AUTH_HEADERS)
+        assert r.status_code == 201
+        body = r.json()
+        assert len(body["inserted"]) == 2
+        assert body["skipped_count"] == 1
+
+    def test_bulk_empty_list_returns_422(self, client):
+        r = client.post("/vocabulary/bulk", json={"words": []}, headers=AUTH_HEADERS)
+        assert r.status_code == 422
+
+    def test_bulk_over_50_returns_422(self, client):
+        words = [{"word": f"w{i}", "definition": "d"} for i in range(51)]
+        r = client.post("/vocabulary/bulk", json={"words": words}, headers=AUTH_HEADERS)
+        assert r.status_code == 422
+
+    def test_bulk_missing_required_fields_returns_422(self, client):
+        r = client.post(
+            "/vocabulary/bulk", json={"words": [{"word": "oops"}]}, headers=AUTH_HEADERS
+        )
+        assert r.status_code == 422
+
+    def test_bulk_inserted_words_have_all_fields(self, client):
+        r = client.post("/vocabulary/bulk", json=BULK_PAYLOAD, headers=AUTH_HEADERS)
+        word = r.json()["inserted"][0]
+        assert "id" in word
+        assert "created_at" in word
+        assert "next_review" in word
+        assert "interval" in word
+
+    def test_bulk_requires_auth(self, client):
+        r = client.post("/vocabulary/bulk", json=BULK_PAYLOAD)
+        assert r.status_code == 401
+
+
 # ---------------------------------------------------------------------------
 # DELETE /vocabulary/{id}
 # ---------------------------------------------------------------------------
