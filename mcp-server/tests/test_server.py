@@ -123,6 +123,86 @@ class TestAddVocabularyErrors:
         assert "Failed" in result
 
 
+class TestBulkToolRegistration:
+    def test_bulk_add_vocabulary_tool_registered(self):
+        tools = asyncio.run(srv.mcp.list_tools())
+        assert any(t.name == "bulk_add_vocabulary" for t in tools)
+
+    def test_bulk_schema_requires_words(self):
+        tools = asyncio.run(srv.mcp.list_tools())
+        tool = next(t for t in tools if t.name == "bulk_add_vocabulary")
+        assert "words" in tool.inputSchema["required"]
+
+
+class TestBulkAddVocabularySuccess:
+    def test_returns_summary_message(self):
+        fake = _make_response(201, {"inserted": [{"word": "a"}, {"word": "b"}], "skipped_count": 0})
+        with patch.object(srv._http_client, "post", new=AsyncMock(return_value=fake)):
+            result = asyncio.run(
+                srv.bulk_add_vocabulary(
+                    [
+                        {"word": "a", "definition": "a"},
+                        {"word": "b", "definition": "b"},
+                    ]
+                )
+            )
+        assert "2" in result
+        assert "Saved" in result
+
+    def test_reports_skipped_duplicates(self):
+        fake = _make_response(201, {"inserted": [{"word": "b"}], "skipped_count": 1})
+        with patch.object(srv._http_client, "post", new=AsyncMock(return_value=fake)):
+            result = asyncio.run(
+                srv.bulk_add_vocabulary(
+                    [
+                        {"word": "a", "definition": "a"},
+                        {"word": "b", "definition": "b"},
+                    ]
+                )
+            )
+        assert "1" in result and ("skip" in result.lower() or "duplicate" in result.lower())
+
+    def test_calls_bulk_endpoint(self):
+        fake = _make_response(201, {"inserted": [], "skipped_count": 0})
+        mock_post = AsyncMock(return_value=fake)
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+        args, kwargs = mock_post.call_args
+        assert "/vocabulary/bulk" in args[0]
+
+    def test_uses_correct_api_key_header(self):
+        fake = _make_response(201, {"inserted": [], "skipped_count": 0})
+        mock_post = AsyncMock(return_value=fake)
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+        _, kwargs = mock_post.call_args
+        assert kwargs["headers"]["X-API-Key"] == "test-key"
+
+
+class TestBulkAddVocabularyErrors:
+    def test_http_error_returns_error_message(self):
+        error_resp = _make_response(422, {"detail": "too many words"})
+        with patch.object(
+            srv._http_client,
+            "post",
+            new=AsyncMock(
+                side_effect=httpx.HTTPStatusError("err", request=MagicMock(), response=error_resp)
+            ),
+        ):
+            result = asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+        assert "Failed" in result
+        assert "422" in result
+
+    def test_network_error_returns_error_message(self):
+        with patch.object(
+            srv._http_client,
+            "post",
+            new=AsyncMock(side_effect=Exception("connection refused")),
+        ):
+            result = asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+        assert "Failed" in result
+
+
 # ---------------------------------------------------------------------------
 # HTTP auth middleware (covered by test_server_integration.py)
 # ---------------------------------------------------------------------------

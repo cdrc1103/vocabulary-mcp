@@ -91,6 +91,37 @@ async def add_vocabulary(
         return f"Failed to save word: {e}"
 
 
+@mcp.tool(
+    description=(
+        "Add multiple vocabulary words at once to the personal study app. "
+        "Use this when the user has asked to save several words from a conversation, "
+        "or when you've explained multiple words and want to offer to save them all."
+    )
+)
+async def bulk_add_vocabulary(
+    words: list[dict],
+) -> str:
+    try:
+        response = await _http_client.post(
+            f"{VOCAB_API_URL}/vocabulary/bulk",
+            json={"words": words},
+            headers={"X-API-Key": VOCAB_API_KEY},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        inserted_count = len(data.get("inserted", []))
+        skipped_count = data.get("skipped_count", 0)
+        msg = f"Saved {inserted_count} words to your vocabulary deck."
+        if skipped_count > 0:
+            msg += f" {skipped_count} duplicates skipped."
+        return msg
+    except httpx.HTTPStatusError as e:
+        return f"Failed to save words: HTTP {e.response.status_code} — {e.response.text}"
+    except Exception as e:
+        return f"Failed to save words: {e}"
+
+
 # ── Custom routes (unprotected) ───────────────────────────────────────────────
 
 
