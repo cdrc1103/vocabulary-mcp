@@ -142,6 +142,14 @@ class TestBulkToolRegistration:
             word_props = schema["$defs"][ref]["properties"]
         assert "word" in word_props
         assert "definition" in word_props
+        # word and definition should be required in the item schema
+        if "required" in items:
+            item_required = items["required"]
+        else:
+            ref = items["$ref"].split("/")[-1]
+            item_required = schema["$defs"][ref].get("required", [])
+        assert "word" in item_required
+        assert "definition" in item_required
 
 
 class TestBulkAddVocabularySuccess:

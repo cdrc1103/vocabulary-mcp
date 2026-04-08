@@ -1,5 +1,5 @@
 import os
-from typing import TypedDict
+from typing import Required, TypedDict
 
 import httpx
 import uvicorn
@@ -12,8 +12,8 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 
 class VocabWord(TypedDict, total=False):
-    word: str
-    definition: str
+    word: Required[str]
+    definition: Required[str]
     example: str
     language: str
 
@@ -102,7 +102,7 @@ async def add_vocabulary(
 
 @mcp.tool(
     description=(
-        "Add multiple vocabulary words at once to the personal study app. "
+        "Add multiple vocabulary words at once to the personal study app (max 50). "
         "Use this when the user has asked to save several words from a conversation, "
         "or when you've explained multiple words and want to offer to save them all."
     )
