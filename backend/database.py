@@ -80,15 +80,26 @@ def insert_words_bulk(words: list[dict]) -> dict:
     if not words:
         return {"inserted": [], "skipped_count": 0}
 
+    created_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    next_review = date.today().isoformat()
+
     with get_connection() as conn:
         inserted = []
         for w in words:
             cursor = conn.execute(
                 """
-                INSERT OR IGNORE INTO vocabulary (word, definition, example, language)
-                VALUES (?, ?, ?, ?)
+                INSERT OR IGNORE INTO vocabulary
+                    (word, definition, example, language, created_at, next_review)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (w["word"], w["definition"], w.get("example"), w.get("language", "unknown")),
+                (
+                    w["word"],
+                    w["definition"],
+                    w.get("example"),
+                    w.get("language", "unknown"),
+                    created_at,
+                    next_review,
+                ),
             )
             if cursor.rowcount > 0:
                 inserted.append(
@@ -98,26 +109,13 @@ def insert_words_bulk(words: list[dict]) -> dict:
                         "definition": w["definition"],
                         "example": w.get("example"),
                         "language": w.get("language", "unknown"),
-                        "created_at": None,
-                        "next_review": None,
+                        "created_at": created_at,
+                        "next_review": next_review,
                         "interval": 1,
                         "ease_factor": 2.5,
                         "repetitions": 0,
                     }
                 )
-
-        if inserted:
-            ids = [r["id"] for r in inserted]
-            placeholders = ",".join("?" * len(ids))
-            rows = conn.execute(
-                f"SELECT id, created_at, next_review FROM vocabulary WHERE id IN ({placeholders})",
-                ids,
-            ).fetchall()
-            ts_map = {r["id"]: (r["created_at"], r["next_review"]) for r in rows}
-            for r in inserted:
-                created_at, next_review = ts_map[r["id"]]
-                r["created_at"] = created_at
-                r["next_review"] = next_review
 
     return {"inserted": inserted, "skipped_count": len(words) - len(inserted)}
 

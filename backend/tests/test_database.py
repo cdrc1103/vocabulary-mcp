@@ -182,6 +182,8 @@ class TestInsertWordsBulk:
         assert row["interval"] == 1
         assert row["ease_factor"] == 2.5
         assert row["repetitions"] == 0
+        assert row["created_at"] is not None
+        assert row["next_review"] == date.today().isoformat()
 
 
 class TestDeleteWord:
