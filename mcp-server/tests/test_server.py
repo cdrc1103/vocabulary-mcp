@@ -4,14 +4,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-import pytest
 
 # conftest sets env vars before this import
 import server as srv
-from starlette.testclient import TestClient
-
-MCP_AUTH = {"Authorization": "Bearer test-mcp-secret"}
-
 
 # ---------------------------------------------------------------------------
 # Tool registration
@@ -129,34 +124,5 @@ class TestAddVocabularyErrors:
 
 
 # ---------------------------------------------------------------------------
-# HTTP auth middleware
+# HTTP auth middleware (covered by test_server_integration.py)
 # ---------------------------------------------------------------------------
-
-
-class TestHTTPAuth:
-    @pytest.fixture
-    def client(self):
-        return TestClient(srv.app, raise_server_exceptions=False)
-
-    def test_health_no_auth_required(self, client):
-        r = client.get("/health")
-        assert r.status_code == 200
-        assert r.json() == {"status": "ok"}
-
-    def test_missing_auth_returns_401(self, client):
-        r = client.post("/mcp")
-        assert r.status_code == 401
-
-    def test_wrong_token_returns_401(self, client):
-        r = client.post("/mcp", headers={"Authorization": "Bearer wrong"})
-        assert r.status_code == 401
-
-    def test_bearer_prefix_required(self, client):
-        # Token without "Bearer " prefix should be rejected
-        r = client.post("/mcp", headers={"Authorization": "test-mcp-secret"})
-        assert r.status_code == 401
-
-    def test_valid_token_passes_auth_layer(self, client):
-        # Auth passes; MCP protocol rejects malformed body — but NOT 401
-        r = client.post("/mcp", headers=MCP_AUTH)
-        assert r.status_code != 401
