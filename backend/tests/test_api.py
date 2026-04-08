@@ -305,6 +305,9 @@ class TestBulkAddVocabulary:
         assert "created_at" in word
         assert "next_review" in word
         assert "interval" in word
+        assert word["interval"] == 1
+        assert word["ease_factor"] == 2.5
+        assert word["repetitions"] == 0
 
     def test_bulk_requires_auth(self, client):
         r = client.post("/vocabulary/bulk", json=BULK_PAYLOAD)
