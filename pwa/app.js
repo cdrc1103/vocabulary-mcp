@@ -1,5 +1,5 @@
 // ── API config ────────────────────────────────────────────────────────────────
-const API_URL = "https://your-app.railway.app";
+const API_URL = "https://backend-production-c18e.up.railway.app";
 
 const TOKEN_KEY = "vocab_token";
 

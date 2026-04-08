@@ -124,6 +124,66 @@ class TestReviewWord:
         assert result is None
 
 
+class TestInsertWordsBulk:
+    def test_inserts_multiple_words(self):
+        words = [
+            {"word": "bonjour", "definition": "hello", "example": None, "language": "French"},
+            {
+                "word": "merci",
+                "definition": "thanks",
+                "example": "Merci beaucoup.",
+                "language": "French",
+            },
+        ]
+        result = db.insert_words_bulk(words)
+        assert len(result["inserted"]) == 2
+        assert result["skipped_count"] == 0
+        assert result["inserted"][0]["word"] == "bonjour"
+        assert result["inserted"][1]["word"] == "merci"
+
+    def test_skips_duplicates(self):
+        db.insert_word("bonjour", "hello", None, "French")
+        words = [
+            {"word": "bonjour", "definition": "hello again", "example": None, "language": "French"},
+            {"word": "merci", "definition": "thanks", "example": None, "language": "French"},
+        ]
+        result = db.insert_words_bulk(words)
+        assert len(result["inserted"]) == 1
+        assert result["inserted"][0]["word"] == "merci"
+        assert result["skipped_count"] == 1
+
+    def test_skips_intra_batch_duplicates(self):
+        words = [
+            {"word": "oui", "definition": "yes", "example": None, "language": "French"},
+            {"word": "oui", "definition": "yes again", "example": None, "language": "French"},
+        ]
+        result = db.insert_words_bulk(words)
+        assert len(result["inserted"]) == 1
+        assert result["skipped_count"] == 1
+
+    def test_empty_list_returns_empty(self):
+        result = db.insert_words_bulk([])
+        assert result == {"inserted": [], "skipped_count": 0}
+
+    def test_same_word_different_language_both_inserted(self):
+        words = [
+            {"word": "chat", "definition": "cat", "example": None, "language": "French"},
+            {"word": "chat", "definition": "to chat", "example": None, "language": "English"},
+        ]
+        result = db.insert_words_bulk(words)
+        assert len(result["inserted"]) == 2
+        assert result["skipped_count"] == 0
+
+    def test_inserted_words_have_correct_defaults(self):
+        words = [{"word": "salut", "definition": "hi", "example": None, "language": "French"}]
+        result = db.insert_words_bulk(words)
+        row = result["inserted"][0]
+        assert isinstance(row["id"], int)
+        assert row["interval"] == 1
+        assert row["ease_factor"] == 2.5
+        assert row["repetitions"] == 0
+
+
 class TestDeleteWord:
     def test_deletes_existing_word(self):
         w = db.insert_word("au revoir", "goodbye", None, "French")
