@@ -1,4 +1,5 @@
 import os
+from typing import TypedDict
 
 import httpx
 import uvicorn
@@ -8,6 +9,14 @@ from mcp.server.fastmcp import FastMCP
 from oauth_provider import VocabularyOAuthProvider
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+
+
+class VocabWord(TypedDict, total=False):
+    word: str
+    definition: str
+    example: str
+    language: str
+
 
 VOCAB_API_URL = os.getenv("VOCAB_API_URL", "http://localhost:8000")
 VOCAB_API_KEY = os.getenv("VOCAB_API_KEY", "")
@@ -99,7 +108,7 @@ async def add_vocabulary(
     )
 )
 async def bulk_add_vocabulary(
-    words: list[dict],
+    words: list[VocabWord],
 ) -> str:
     try:
         response = await _http_client.post(

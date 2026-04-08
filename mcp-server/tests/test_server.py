@@ -131,7 +131,17 @@ class TestBulkToolRegistration:
     def test_bulk_schema_requires_words(self):
         tools = asyncio.run(srv.mcp.list_tools())
         tool = next(t for t in tools if t.name == "bulk_add_vocabulary")
-        assert "words" in tool.inputSchema["required"]
+        schema = tool.inputSchema
+        assert "words" in schema["required"]
+        items = schema["properties"]["words"]["items"]
+        # FastMCP may inline properties or use a $ref into $defs
+        if "properties" in items:
+            word_props = items["properties"]
+        else:
+            ref = items["$ref"].split("/")[-1]
+            word_props = schema["$defs"][ref]["properties"]
+        assert "word" in word_props
+        assert "definition" in word_props
 
 
 class TestBulkAddVocabularySuccess:
