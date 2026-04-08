@@ -2,12 +2,12 @@ import os
 
 import httpx
 import uvicorn
+from database import init_db
+from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import FastMCP
-from starlette.applications import Starlette
-from starlette.middleware.base import BaseHTTPMiddleware
+from oauth_provider import VocabularyOAuthProvider
 from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 VOCAB_API_URL = os.getenv("VOCAB_API_URL", "http://localhost:8000")
 VOCAB_API_KEY = os.getenv("VOCAB_API_KEY", "")
@@ -18,12 +18,39 @@ MCP_SECRET = os.getenv("MCP_SECRET", "")
 if not MCP_SECRET:
     raise RuntimeError("MCP_SECRET environment variable is not set")
 
+ISSUER_URL = os.getenv("ISSUER_URL", "http://localhost:8080")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "oauth.db")
+
+# Initialize database
+init_db(DATABASE_PATH)
+
 # Module-level client: reuses connection pool and TLS session across calls
 _http_client = httpx.AsyncClient()
 
-# ── MCP tools ─────────────────────────────────────────────────────────────────
+# ── OAuth provider ────────────────────────────────────────────────────────────
 
-mcp = FastMCP("vocabulary")
+oauth_provider = VocabularyOAuthProvider(
+    db_path=DATABASE_PATH,
+    secret=MCP_SECRET,
+    issuer_url=ISSUER_URL,
+)
+
+# ── MCP server with OAuth ─────────────────────────────────────────────────────
+
+mcp = FastMCP(
+    "vocabulary",
+    auth_server_provider=oauth_provider,
+    auth=AuthSettings(
+        issuer_url=ISSUER_URL,
+        resource_server_url=ISSUER_URL,
+        client_registration_options=ClientRegistrationOptions(enabled=True),
+        revocation_options=RevocationOptions(enabled=True),
+    ),
+    host="0.0.0.0",
+    port=int(os.getenv("PORT", "8080")),
+)
+
+# ── MCP tools ─────────────────────────────────────────────────────────────────
 
 
 @mcp.tool(
@@ -39,7 +66,6 @@ async def add_vocabulary(
     example: str | None = None,
     language: str | None = None,
 ) -> str:
-    # Only forward explicitly provided optional fields
     payload: dict[str, str] = {"word": word, "definition": definition}
     if example is not None:
         payload["example"] = example
@@ -65,34 +91,48 @@ async def add_vocabulary(
         return f"Failed to save word: {e}"
 
 
-# ── HTTP layer ─────────────────────────────────────────────────────────────────
-
-_UNPROTECTED = {"/health"}
+# ── Custom routes (unprotected) ───────────────────────────────────────────────
 
 
-class BearerAuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.method == "OPTIONS" or request.url.path in _UNPROTECTED:
-            return await call_next(request)
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer ") or auth[7:] != MCP_SECRET:
-            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-        return await call_next(request)
-
-
-def health(_request: Request) -> JSONResponse:
+@mcp.custom_route("/health", methods=["GET"])
+async def health(_request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
-app = Starlette(
-    routes=[
-        Route("/health", health),
-        Mount("/", mcp.streamable_http_app()),
-    ]
-)
-app.add_middleware(BearerAuthMiddleware)
+@mcp.custom_route("/authorize/submit", methods=["GET", "POST"])
+async def authorize_submit(request: Request) -> HTMLResponse | RedirectResponse:
+    """Password-gated OAuth authorization endpoint."""
+    if request.method == "GET":
+        auth_params = request.query_params.get("auth_params", "")
+        return HTMLResponse(oauth_provider.render_login_page(auth_params))
 
-# ── Entrypoint ─────────────────────────────────────────────────────────────────
+    # POST: validate password
+    form = await request.form()
+    auth_params_nonce = str(form.get("auth_params", ""))
+    password = str(form.get("password", ""))
+
+    if password != MCP_SECRET:
+        return HTMLResponse(
+            oauth_provider.render_login_page(auth_params_nonce, error="Invalid password"),
+            status_code=401,
+        )
+
+    # Look up pending authorization params
+    pending = oauth_provider._pending_params.pop(auth_params_nonce, None)
+    if pending is None:
+        return HTMLResponse(
+            oauth_provider.render_login_page(
+                auth_params_nonce, error="Session expired. Please try again."
+            ),
+            status_code=400,
+        )
+
+    client, params = pending
+    redirect_url = oauth_provider.complete_authorization(client, params)
+    return RedirectResponse(url=redirect_url, status_code=302)
+
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
+    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
