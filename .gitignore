@@ -33,5 +33,8 @@ Thumbs.db
 *.swp
 *.swo
 
+# Worktrees
+.worktrees/
+
 # Superpowers specs
 docs/superpowers/
