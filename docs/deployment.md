@@ -8,9 +8,9 @@ All three components are built and tested. This doc covers the remaining steps t
 
 ```
 claude.ai (phone)
-    │  ① Authorization: Bearer MCP_SECRET
+    │  ① OAuth 2.1 (authorize → token → Bearer)
     ▼
-MCP server (Railway)  — rejects strangers at the HTTP layer
+MCP server (Railway)  — AS + RS, OAuth 2.1 + DCR
     │  ② X-API-Key: VOCAB_API_KEY
     ▼
 Backend API (Railway) — already protected
@@ -19,9 +19,11 @@ Backend API (Railway) — already protected
 SQLite
 ```
 
-Two separate secrets, two separate trust boundaries.
-`MCP_SECRET` and `VOCAB_API_KEY` are different values — if the MCP URL ever leaks,
-the backend key is still safe.
+Claude.ai authenticates via OAuth 2.1 (Authorization Code + PKCE).
+The MCP server acts as both Authorization Server and Resource Server.
+Dynamic Client Registration (RFC 7591) is enabled.
+`MCP_SECRET` serves as the login password and JWT signing key.
+`VOCAB_API_KEY` is a separate secret for backend access.
 
 ---
 
@@ -62,29 +64,32 @@ Keep them separate. Pick a memorable passphrase for `PWA_PASSWORD`.
 ## 3. Deploy the MCP server (Railway — separate service)
 
 1. In the same Railway project, add a second service → root directory: `mcp-server/`.
-2. Set environment variables:
+2. Add a **Persistent Volume** mounted at `/data`.
+3. Set environment variables:
    ```
    VOCAB_API_URL=https://<backend>.railway.app
    VOCAB_API_KEY=<your-key>       # MCP server → backend
-   MCP_SECRET=<your-mcp-secret>   # inbound auth: claude.ai → MCP server
+   MCP_SECRET=<your-mcp-secret>   # OAuth login password + JWT signing key
+   ISSUER_URL=https://<mcp>.railway.app
+   DATABASE_PATH=/data/oauth.db
    PORT=8080
    ```
-3. Start command: `python server.py`
-4. Railway will assign a public URL, e.g. `https://<mcp>.railway.app`.
-5. Confirm: `curl https://<mcp>.railway.app/health` → `{"status": "ok"}`
+4. Start command: `python server.py`
+5. Railway will assign a public URL, e.g. `https://<mcp>.railway.app`.
+6. Confirm: `curl https://<mcp>.railway.app/health` → `{"status": "ok"}`
 
 ---
 
-## 4. Connect the MCP server to Claude on your phone
+## 4. Connect an MCP client
 
-Claude.ai supports remote MCP servers via the **Integrations** panel.
+Any MCP client that supports OAuth 2.1 (Claude.ai, ChatGPT, etc.) can connect.
 
-1. Open claude.ai → **Settings** → **Integrations** → **Add integration**.
-2. Enter the MCP server URL: `https://<mcp>.railway.app`
-3. When prompted for auth, provide `MCP_SECRET` as the Bearer token.
-   > claude.ai's exact auth UI evolves — check current docs if the flow differs.
-   > The server validates `Authorization: Bearer <MCP_SECRET>` on every request.
-4. Smoke-test: ask Claude on your phone _"Save the word 'épanouissement'
+1. Add a remote MCP server with URL: `https://<mcp>.railway.app`
+2. The client discovers OAuth metadata automatically via
+   `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`.
+3. You'll be redirected to the login page — enter your `MCP_SECRET` password.
+4. After authorization, the client receives tokens and refreshes them automatically.
+5. Smoke-test: ask the assistant _"Save the word 'épanouissement'
    (French, means flourishing) to my vocab deck."_
    Confirm it landed:
    ```bash
@@ -143,7 +148,7 @@ Then use Claude on your phone to add a word via the MCP tool, and verify it show
 
 | Item | Notes |
 |------|-------|
-| ~~MCP server HTTP transport + Bearer auth~~ | Done ✓ |
+| ~~MCP server HTTP transport + Bearer auth~~ | Replaced with OAuth 2.1 ✓ |
 | `pwa/app.js` hardcodes `API_URL` | Railway URL is not a secret; fine to commit |
 | SQLite on Railway | Fine for personal scale; migrate to Postgres only if you want managed backups |
 | MCP exposes only `add_vocabulary` | Could add `list_vocabulary` / `get_due_words` so Claude can answer "what's due today?" |
