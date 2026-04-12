@@ -73,7 +73,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 }
 .mode-btn {
   flex: 1;
-  padding: 0.55rem 0;
+  padding: 0.5rem 0;
   border: none;
   border-radius: 0.5rem;
   font-size: 0.9rem;
@@ -87,6 +87,10 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .mode-btn.active {
   background: #4f46e5;
   color: white;
+}
+.mode-btn:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: -2px;
 }
 
 /* ===== Flashcard ===== */
