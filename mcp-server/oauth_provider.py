@@ -30,7 +30,7 @@ from mcp.server.auth.provider import (
     construct_redirect_uri,
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
-from oauth_templates import LOGIN_PAGE_HTML
+from oauth_templates import login_template
 from pydantic import AnyUrl
 
 ACCESS_TOKEN_EXPIRY = 3600
@@ -409,4 +409,4 @@ class VocabularyOAuthProvider:
             does NOT escape; caller must validate).
         """
         error_html = f'<div class="error">{error}</div>' if error else ""
-        return LOGIN_PAGE_HTML.format(auth_params_encoded=auth_params_nonce, error_html=error_html)
+        return login_template(auth_params_encoded=auth_params_nonce, error_html=error_html)
