@@ -130,6 +130,10 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   clearToken();
   showLogin();
 });
+
+// ── Study view ────────────────────────────────────────────────────────────────
+let reverseMode = false;
+
 document.getElementById("btn-study").addEventListener("click", () => loadStudy(reverseMode));
 document.getElementById("btn-browse").addEventListener("click", loadBrowse);
 document.getElementById("study-back").addEventListener("click", loadHome);
@@ -138,8 +142,6 @@ document.getElementById("study-done-btn").addEventListener("click", loadHome);
 document.getElementById("study-home-btn").addEventListener("click", loadHome);
 document.getElementById("study-again-btn").addEventListener("click", () => loadStudy(reverseMode));
 
-// ── Study view ────────────────────────────────────────────────────────────────
-let reverseMode = false;
 let dueCards = [];
 let currentCardIndex = 0;
 let reviewedCount = 0;
@@ -160,6 +162,7 @@ const studyEl = {
   ratings:    document.getElementById("rating-buttons"),
 };
 
+// reverse param allows callers to override the toggle state (e.g. study-again preserves mode)
 async function loadStudy(reverse = false) {
   reverseMode = reverse;
   showView("study");
