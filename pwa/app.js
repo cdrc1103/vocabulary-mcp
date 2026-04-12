@@ -139,6 +139,7 @@ document.getElementById("study-home-btn").addEventListener("click", loadHome);
 document.getElementById("study-again-btn").addEventListener("click", loadStudy);
 
 // ── Study view ────────────────────────────────────────────────────────────────
+let reverseMode = false;
 let dueCards = [];
 let currentCardIndex = 0;
 let reviewedCount = 0;
@@ -371,6 +372,17 @@ function buildWordItem(word) {
   item.append(summary, detail);
   return item;
 }
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+document.getElementById("mode-toggle").addEventListener("click", (e) => {
+  const btn = e.target.closest(".mode-btn");
+  if (!btn) return;
+  reverseMode = btn.dataset.mode === "true";
+  document.querySelectorAll(".mode-btn").forEach((b) => {
+    b.classList.toggle("active", b === btn);
+    b.setAttribute("aria-pressed", String(b === btn));
+  });
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (getToken()) {
