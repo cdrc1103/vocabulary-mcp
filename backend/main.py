@@ -1,3 +1,9 @@
+"""FastAPI application for vocabulary study API.
+
+Provides RESTful endpoints for managing vocabulary words with spaced repetition
+scheduling (SM-2 algorithm). Includes authentication, CORS support, and health checks.
+"""
+
 from contextlib import asynccontextmanager
 
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
@@ -25,6 +31,16 @@ from models import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Application lifecycle hook for startup/shutdown tasks.
+
+    Initializes the SQLite database on app startup.
+
+    Args:
+        app: FastAPI application instance.
+
+    Yields:
+        Control returns to FastAPI after db initialization.
+    """
     init_db()
     yield
 
@@ -46,11 +62,27 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
+    """Health check endpoint.
+
+    Returns:
+        Dictionary with status "ok".
+    """
     return {"status": "ok"}
 
 
 @app.post("/auth/login")
 def login(payload: LoginRequest):
+    """Authenticate user with password and return JWT token.
+
+    Args:
+        payload: LoginRequest with password field.
+
+    Returns:
+        Dictionary with 'token' and 'token_type'.
+
+    Raises:
+        HTTPException: 401 if password is invalid.
+    """
     if payload.password != PWA_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid password")
     return {"token": create_token(), "token_type": "bearer"}
@@ -58,6 +90,14 @@ def login(payload: LoginRequest):
 
 @app.post("/vocabulary", response_model=VocabularyResponse, status_code=201)
 def add_vocabulary(payload: VocabularyCreate):
+    """Create and store a new vocabulary word.
+
+    Args:
+        payload: VocabularyCreate with word, definition, example, language.
+
+    Returns:
+        VocabularyResponse with id, timestamps, and SM-2 state.
+    """
     word = insert_word(
         word=payload.word,
         definition=payload.definition,
@@ -69,6 +109,14 @@ def add_vocabulary(payload: VocabularyCreate):
 
 @app.post("/vocabulary/bulk", response_model=BulkVocabularyResponse, status_code=201)
 def bulk_add_vocabulary(payload: BulkVocabularyCreate):
+    """Create and store multiple vocabulary words in a single request.
+
+    Args:
+        payload: BulkVocabularyCreate with 1-50 words.
+
+    Returns:
+        BulkVocabularyResponse with created_count and words list.
+    """
     result = insert_words_bulk([w.model_dump() for w in payload.words])
     return result
 
@@ -79,16 +127,43 @@ def list_vocabulary(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
+    """List vocabulary words with optional language filter and pagination.
+
+    Args:
+        language: Optional filter by language code.
+        limit: Number of results per page (1-1000, default 100).
+        offset: Number of results to skip (default 0).
+
+    Returns:
+        VocabularyListResponse with total count and paginated words.
+    """
     return get_words(language=language, limit=limit, offset=offset)
 
 
 @app.get("/vocabulary/due", response_model=list[VocabularyResponse])
 def due_vocabulary():
+    """Get words due for review (next_review <= now).
+
+    Returns:
+        List of VocabularyResponse objects ready for study.
+    """
     return get_due_words()
 
 
 @app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)
 def submit_review(word_id: int, payload: ReviewRequest):
+    """Submit a review for a word and update SM-2 state.
+
+    Args:
+        word_id: ID of the word being reviewed.
+        payload: ReviewRequest with quality score (0-5).
+
+    Returns:
+        Updated VocabularyResponse.
+
+    Raises:
+        HTTPException: 404 if word_id not found.
+    """
     result = review_word(word_id=word_id, quality=payload.quality)
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")
@@ -97,6 +172,14 @@ def submit_review(word_id: int, payload: ReviewRequest):
 
 @app.delete("/vocabulary/{word_id}", status_code=204)
 def remove_vocabulary(word_id: int):
+    """Delete a vocabulary word by ID.
+
+    Args:
+        word_id: ID of the word to delete.
+
+    Raises:
+        HTTPException: 404 if word_id not found.
+    """
     deleted = delete_word(word_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Word not found")
