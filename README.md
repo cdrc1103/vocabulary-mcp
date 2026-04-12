@@ -1,13 +1,13 @@
 # Vocabulary App
 
-A full-stack spaced-repetition vocabulary study system. Claude can push words directly into your personal study deck via an MCP tool, and you review them on an installable mobile PWA.
+A full-stack spaced-repetition vocabulary study system. An AI assistant can push words directly into your personal study deck via an MCP tool, and you review them on an installable mobile PWA.
 
 ## Components
 
 | Component | Description |
 |-----------|-------------|
 | `backend/` | FastAPI + SQLite REST API |
-| `mcp-server/` | MCP server exposing `add_vocabulary` to Claude Desktop |
+| `mcp-server/` | MCP server exposing `add_vocabulary` to AI assistants |
 | `pwa/` | Installable PWA flashcard study app |
 
 ---
@@ -59,15 +59,15 @@ curl -X PATCH http://localhost:8000/vocabulary/1/review \
 curl -X DELETE http://localhost:8000/vocabulary/1 -H "X-API-Key: $API_KEY"
 ```
 
-### Deploy to Railway
+### Deploy
 
-1. Create a new Railway project and connect this repository.
-2. Add a persistent volume mounted at `/data`.
+1. Host the backend on any platform that supports Python (e.g. a VPS, container service, or PaaS).
+2. Mount a persistent volume for the SQLite database.
 3. Set environment variables:
    - `API_KEY` — generate with `openssl rand -hex 32`
-   - `DATABASE_PATH` — `/data/vocab.db`
-4. Set the start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Confirm the service is running: `curl https://your-app.railway.app/health`
+   - `DATABASE_PATH` — path to the `.db` file on the persistent volume
+4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+5. Confirm the service is running: `curl https://your-backend-url/health`
 
 ---
 
@@ -80,31 +80,19 @@ cd mcp-server
 uv sync
 
 cat > .env <<EOF
-VOCAB_API_URL=https://your-app.railway.app
+VOCAB_API_URL=https://your-backend-url
 VOCAB_API_KEY=<same key as backend>
 EOF
 ```
 
-### Configure Claude Desktop
+### Configure your AI assistant
 
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+Register the MCP server with your AI assistant's configuration. Point it at `mcp-server/server.py` and pass the following environment variables:
 
-```json
-{
-  "mcpServers": {
-    "vocabulary": {
-      "command": "uv",
-      "args": ["run", "--directory", "/absolute/path/to/vocab-app/mcp-server", "python", "server.py"],
-      "env": {
-        "VOCAB_API_URL": "https://your-app.railway.app",
-        "VOCAB_API_KEY": "your-api-key-here"
-      }
-    }
-  }
-}
-```
+- `VOCAB_API_URL` — base URL of your deployed backend
+- `VOCAB_API_KEY` — the API key from your backend `.env`
 
-Restart Claude Desktop. You can now ask Claude: *"Save 'épanouissement' to my vocab deck."*
+Once configured, you can ask your assistant: *"Save 'épanouissement' to my vocab deck."*
 
 ---
 
@@ -123,7 +111,7 @@ Update the `API_URL` and `API_KEY` constants at the top of `pwa/app.js` to point
 
 ### Deploy
 
-Host the `pwa/` folder as a static site on Netlify, Cloudflare Pages, or GitHub Pages. The site **must** be served over HTTPS for service workers and "Add to Home Screen" to work.
+Host the `pwa/` folder as a static site on any static hosting provider. The site **must** be served over HTTPS for service workers and "Add to Home Screen" to work.
 
 ### Install on mobile
 
@@ -134,7 +122,8 @@ Host the `pwa/` folder as a static site on Netlify, Cloudflare Pages, or GitHub 
 
 ## Security Notes
 
-- The API key is visible in `pwa/app.js`. This is acceptable for a personal app. Do not commit `.env` files or hardcode keys in public repositories.
+- The PWA communicates with the backend exclusively through a server-side proxy (`functions/api/`). The API key is never exposed to the browser.
+- Store `BACKEND_URL` (and any secrets) as environment variables in your hosting platform — never commit them to version control.
 - The backend allows all CORS origins (`*`). Restrict to the PWA's domain after deployment if desired.
 
 ---
@@ -142,12 +131,12 @@ Host the `pwa/` folder as a static site on Netlify, Cloudflare Pages, or GitHub 
 ## Architecture
 
 ```
-Claude Desktop
+AI Assistant
   │  MCP tool: add_vocabulary
   ▼
 MCP Server (local) — POST /vocabulary
   ▼
-Backend API (Railway) — SQLite
+Backend API — SQLite
   ▼
-PWA (Netlify) — GET /vocabulary/due → flashcard study → PATCH /vocabulary/{id}/review
+PWA — GET /vocabulary/due → flashcard study → PATCH /vocabulary/{id}/review
 ```
