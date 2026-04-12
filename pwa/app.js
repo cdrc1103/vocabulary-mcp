@@ -203,6 +203,15 @@ async function loadStudy(reverse = false) {
 
 function showCard() {
   const card = dueCards[currentCardIndex];
+
+  // Snap card to front instantly before updating content — prevents the back
+  // face from briefly showing the new card's answer during the flip-back animation.
+  const cardInner = flashcard.querySelector(".flashcard-card");
+  cardInner.style.transition = "none";
+  flashcard.classList.remove("flipped");
+  void cardInner.offsetWidth; // force reflow so transition:none takes effect
+  cardInner.style.transition = ""; // restore for user-initiated flips
+
   studyEl.progress.textContent = `${currentCardIndex + 1} / ${dueCards.length}`;
   studyEl.lang.textContent = card.language || "";
 
@@ -220,7 +229,6 @@ function showCard() {
   flashcard.setAttribute("aria-label", reverseMode ? "Tap to reveal word" : "Tap to reveal definition");
   studyEl.hint.textContent = reverseMode ? "tap to reveal word" : "tap to reveal";
 
-  flashcard.classList.remove("flipped");
   studyEl.ratings.classList.add("hidden");
   studyEl.area.classList.remove("hidden");
 }
