@@ -2,16 +2,33 @@ import os
 import sqlite3
 from datetime import UTC, date, datetime, timedelta
 
+"""Database operations for vocabulary management.
+
+Provides SQLite database access for vocabulary words, including CRUD operations,
+SRS (SM-2) calculations, and spaced repetition scheduling. Database is initialized
+on app startup and persists vocabulary with review intervals.
+"""
+
 DATABASE_PATH = os.getenv("DATABASE_PATH", "./vocab.db")
 
 
 def get_connection() -> sqlite3.Connection:
+    """Open a connection to the SQLite database.
+
+    Returns:
+        sqlite3.Connection: Database connection with Row factory enabled.
+    """
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db():
+    """Initialize SQLite database and create vocabulary table if missing.
+
+    Creates the vocabulary table with columns for word metadata and SM-2 algorithm state.
+    Called during application startup via lifespan context manager.
+    """
     with get_connection() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS vocabulary (
@@ -35,6 +52,20 @@ def init_db():
 
 
 def apply_sm2(interval: int, ease: float, reps: int, quality: int):
+    """Apply SM-2 spaced repetition algorithm to calculate next interval and ease factor.
+
+    SM-2 (SuperMemo 2) is an algorithm for optimizing review intervals based on
+    response quality. Higher quality scores increase ease factor and interval.
+
+    Args:
+        interval: Current review interval in days.
+        ease: Current ease factor (difficulty multiplier).
+        reps: Number of successful repetitions.
+        quality: Quality score from review (0-5, where 3+ is passing).
+
+    Returns:
+        Tuple of (new_interval, new_ease, new_reps) for the updated SM-2 state.
+    """
     if quality < 3:
         return 1, ease, 0
     else:
@@ -51,6 +82,17 @@ def apply_sm2(interval: int, ease: float, reps: int, quality: int):
 
 
 def insert_word(word: str, definition: str, example: str | None, language: str) -> dict:
+    """Insert a new vocabulary word with SRS metadata.
+
+    Args:
+        word: The vocabulary word.
+        definition: Definition of the word.
+        example: Optional example sentence.
+        language: Language code or name.
+
+    Returns:
+        Dictionary with word data including id, created_at, and SM-2 fields.
+    """
     # Compute defaults in Python so we can return them without a second SELECT.
     created_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     next_review = date.today().isoformat()
@@ -77,6 +119,18 @@ def insert_word(word: str, definition: str, example: str | None, language: str) 
 
 
 def insert_words_bulk(words: list[dict]) -> dict:
+    """Insert multiple vocabulary words in a single transaction.
+
+    Uses INSERT OR IGNORE to skip duplicates (word + language combinations).
+    Useful for bulk imports where some words may already exist.
+
+    Args:
+        words: List of dictionaries with word, definition, example, language keys.
+
+    Returns:
+        Dictionary with 'inserted' list of created VocabularyResponse objects and
+        'skipped_count' for duplicate entries not inserted.
+    """
     if not words:
         return {"inserted": [], "skipped_count": 0}
 
@@ -121,6 +175,16 @@ def insert_words_bulk(words: list[dict]) -> dict:
 
 
 def get_words(language: str | None, limit: int, offset: int) -> dict:
+    """Retrieve paginated vocabulary words.
+
+    Args:
+        language: Optional filter by language code. If None, returns all words.
+        limit: Max number of results (typically 100).
+        offset: Number of results to skip for pagination.
+
+    Returns:
+        Dictionary with 'total' count and 'words' list of vocabulary dicts.
+    """
     where = "WHERE language = ?" if language else ""
     count_params = (language,) if language else ()
     page_params = (language, limit, offset) if language else (limit, offset)
@@ -134,6 +198,11 @@ def get_words(language: str | None, limit: int, offset: int) -> dict:
 
 
 def get_due_words() -> list[dict]:
+    """Retrieve words with next_review <= now (due for study).
+
+    Returns:
+        List of vocabulary dicts for words ready to review, ordered by next_review date.
+    """
     today = date.today().isoformat()
     with get_connection() as conn:
         rows = conn.execute(
@@ -144,6 +213,18 @@ def get_due_words() -> list[dict]:
 
 
 def review_word(word_id: int, quality: int) -> dict | None:
+    """Submit a review for a word and update SM-2 algorithm state.
+
+    Applies the SM-2 algorithm to calculate new interval, ease factor, and
+    repetition count. Updates next_review date based on new interval.
+
+    Args:
+        word_id: ID of the word being reviewed.
+        quality: SM-2 quality score (0-5, where 3+ is passing).
+
+    Returns:
+        Updated vocabulary dict with new SM-2 state, or None if word_id not found.
+    """
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM vocabulary WHERE id = ?", (word_id,)).fetchone()
         if row is None:
@@ -175,6 +256,14 @@ def review_word(word_id: int, quality: int) -> dict | None:
 
 
 def delete_word(word_id: int) -> bool:
+    """Delete a vocabulary word by ID.
+
+    Args:
+        word_id: ID of the word to delete.
+
+    Returns:
+        True if word was deleted, False if word_id not found.
+    """
     with get_connection() as conn:
         result = conn.execute("DELETE FROM vocabulary WHERE id = ?", (word_id,))
         return result.rowcount > 0
