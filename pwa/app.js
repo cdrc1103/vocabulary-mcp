@@ -160,6 +160,7 @@ const studyEl = {
   definition: document.getElementById("card-definition"),
   example:    document.getElementById("card-example"),
   ratings:    document.getElementById("rating-buttons"),
+  hint:       document.querySelector(".card-hint"),
 };
 
 // reverse param allows callers to override the toggle state (e.g. study-again preserves mode)
@@ -207,14 +208,17 @@ function showCard() {
 
   if (reverseMode) {
     // Front: definition. Back: word + example.
-    studyEl.word.textContent = card.definition;
-    studyEl.definition.textContent = card.word;
+    studyEl.word.textContent = card.definition || "";
+    studyEl.definition.textContent = card.word || "";
   } else {
     // Front: word. Back: definition + example.
-    studyEl.word.textContent = card.word;
-    studyEl.definition.textContent = card.definition;
+    studyEl.word.textContent = card.word || "";
+    studyEl.definition.textContent = card.definition || "";
   }
   studyEl.example.textContent = card.example || "";
+
+  flashcard.setAttribute("aria-label", reverseMode ? "Tap to reveal word" : "Tap to reveal definition");
+  studyEl.hint.textContent = reverseMode ? "tap to reveal word" : "tap to reveal";
 
   flashcard.classList.remove("flipped");
   studyEl.ratings.classList.add("hidden");
