@@ -130,13 +130,13 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   clearToken();
   showLogin();
 });
-document.getElementById("btn-study").addEventListener("click", loadStudy);
+document.getElementById("btn-study").addEventListener("click", () => loadStudy(reverseMode));
 document.getElementById("btn-browse").addEventListener("click", loadBrowse);
 document.getElementById("study-back").addEventListener("click", loadHome);
 document.getElementById("browse-back").addEventListener("click", loadHome);
 document.getElementById("study-done-btn").addEventListener("click", loadHome);
 document.getElementById("study-home-btn").addEventListener("click", loadHome);
-document.getElementById("study-again-btn").addEventListener("click", loadStudy);
+document.getElementById("study-again-btn").addEventListener("click", () => loadStudy(reverseMode));
 
 // ── Study view ────────────────────────────────────────────────────────────────
 let reverseMode = false;
@@ -160,7 +160,8 @@ const studyEl = {
   ratings:    document.getElementById("rating-buttons"),
 };
 
-async function loadStudy() {
+async function loadStudy(reverse = false) {
+  reverseMode = reverse;
   showView("study");
   // Clear any leftover error messages from a previous failed load
   studyEl.main.querySelectorAll(".error-msg").forEach((el) => el.remove());
