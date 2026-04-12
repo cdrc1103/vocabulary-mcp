@@ -139,6 +139,62 @@ async def bulk_add_vocabulary(
         return f"Failed to save words: {e}"
 
 
+@mcp.tool(
+    description=(
+        "Add a single vocabulary word to the personal study app. "
+        "Use this when the user wants to save one word with its definition."
+    )
+)
+async def add_vocabulary(
+    word: str,
+    definition: str,
+    example: str | None = None,
+    language: str | None = None,
+) -> str:
+    """Add a single vocabulary word via MCP tool.
+
+    Creates a vocabulary entry accessible to Claude and other MCP clients.
+
+    Args:
+        word: The vocabulary word.
+        definition: Definition of the word.
+        example: Optional example sentence or usage.
+        language: Optional language code.
+
+    Returns:
+        Success message with word details, or error message with HTTP status code
+        or exception details if the request fails.
+
+    Example:
+        MCP clients can call this tool to save a single word:
+        {
+            "word": "serendipity",
+            "definition": "Finding valuable things by chance",
+            "example": "It was pure serendipity that we met.",
+            "language": "en"
+        }
+    """
+    try:
+        payload = {
+            "word": word,
+            "definition": definition,
+            "example": example,
+            "language": language or "unknown",
+        }
+        response = await _http_client.post(
+            f"{VOCAB_API_URL}/vocabulary",
+            json=payload,
+            headers={"X-API-Key": VOCAB_API_KEY},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return f'Added "{word}" ("{definition}") to vocabulary.'
+    except httpx.HTTPStatusError as e:
+        return f"Failed to save word: HTTP {e.response.status_code} — {e.response.text}"
+    except Exception as e:
+        return f"Failed to save word: {e}"
+
+
 # ── Custom routes (unprotected) ───────────────────────────────────────────────
 
 

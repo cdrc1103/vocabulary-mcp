@@ -1,13 +1,13 @@
-import os
-import sqlite3
-from datetime import UTC, date, datetime, timedelta
-
 """Database operations for vocabulary management.
 
 Provides SQLite database access for vocabulary words, including CRUD operations,
 SRS (SM-2) calculations, and spaced repetition scheduling. Database is initialized
 on app startup and persists vocabulary with review intervals.
 """
+
+import os
+import sqlite3
+from datetime import UTC, date, datetime, timedelta
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "./vocab.db")
 
