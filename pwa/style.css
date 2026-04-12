@@ -90,7 +90,10 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 }
 .mode-btn:focus-visible {
   outline: 2px solid #4f46e5;
-  outline-offset: -2px;
+  outline-offset: 2px;
+}
+.mode-btn:not(.active):hover {
+  background: rgba(79, 70, 229, 0.12);
 }
 
 /* ===== Flashcard ===== */
