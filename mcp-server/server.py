@@ -64,44 +64,6 @@ mcp = FastMCP(
 
 @mcp.tool(
     description=(
-        "Add a vocabulary word to the personal study app. "
-        "Use this when the user asks to save a word, or when you've "
-        "explained a word and want to offer to save it."
-    )
-)
-async def add_vocabulary(
-    word: str,
-    definition: str,
-    example: str | None = None,
-    language: str | None = None,
-) -> str:
-    payload: dict[str, str] = {"word": word, "definition": definition}
-    if example is not None:
-        payload["example"] = example
-    if language is not None:
-        payload["language"] = language
-
-    try:
-        response = await _http_client.post(
-            f"{VOCAB_API_URL}/vocabulary",
-            json=payload,
-            headers={"X-API-Key": VOCAB_API_KEY},
-            timeout=10.0,
-        )
-        response.raise_for_status()
-        word_data = response.json()
-        return (
-            f"Successfully saved '{word_data.get('word', word)}' to your vocabulary deck. "
-            f"It will be due for review on {word_data.get('next_review', 'a future date')}."
-        )
-    except httpx.HTTPStatusError as e:
-        return f"Failed to save word: HTTP {e.response.status_code} — {e.response.text}"
-    except Exception as e:
-        return f"Failed to save word: {e}"
-
-
-@mcp.tool(
-    description=(
         "Add multiple vocabulary words at once to the personal study app (max 50). "
         "Use this when the user has asked to save several words from a conversation, "
         "or when you've explained multiple words and want to offer to save them all."
