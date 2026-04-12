@@ -1,3 +1,8 @@
+"""Tests for OAuth provider implementation.
+
+Tests authorization code grant flow, client registration, and token issuance.
+"""
+
 import pytest
 from database import init_db
 from oauth_provider import VocabularyOAuthProvider
@@ -8,6 +13,14 @@ REFRESH_TOKEN_EXPIRY = 30 * 24 * 3600
 
 @pytest.fixture()
 def db_path(tmp_path):
+    """Initialize a temporary SQLite database for OAuth provider testing.
+
+    Args:
+        tmp_path: pytest temporary directory fixture.
+
+    Yields:
+        str: Path to the initialized test database.
+    """
     path = str(tmp_path / "test_oauth.db")
     init_db(path)
     return path
@@ -15,6 +28,14 @@ def db_path(tmp_path):
 
 @pytest.fixture()
 def provider(db_path):
+    """Create a VocabularyOAuthProvider instance for testing.
+
+    Args:
+        db_path: Path to the test database.
+
+    Yields:
+        VocabularyOAuthProvider: Configured OAuth provider instance.
+    """
     return VocabularyOAuthProvider(
         db_path=db_path,
         secret="test-secret-key-for-jwt-signing",
@@ -24,6 +45,11 @@ def provider(db_path):
 
 @pytest.fixture()
 def sample_client_metadata():
+    """Create sample OAuth client metadata for registration testing.
+
+    Yields:
+        OAuthClientInformationFull: Pre-configured client metadata.
+    """
     from mcp.shared.auth import OAuthClientInformationFull
 
     return OAuthClientInformationFull(
@@ -38,6 +64,7 @@ def sample_client_metadata():
 class TestClientRegistration:
     @pytest.mark.asyncio
     async def test_register_and_get_client(self, provider, sample_client_metadata):
+        """Test OAuth client registration and retrieval."""
         await provider.register_client(sample_client_metadata)
         assert sample_client_metadata.client_id is not None
         assert sample_client_metadata.client_secret is not None
@@ -48,6 +75,7 @@ class TestClientRegistration:
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_client(self, provider):
+        """Test that retrieving nonexistent client returns None."""
         result = await provider.get_client("nonexistent")
         assert result is None
 
@@ -55,6 +83,7 @@ class TestClientRegistration:
 class TestAuthorizationCodeFlow:
     @pytest.mark.asyncio
     async def test_authorize_returns_login_url(self, provider, sample_client_metadata):
+        """Test authorization endpoint returns login page URL."""
         from mcp.server.auth.provider import AuthorizationParams
 
         await provider.register_client(sample_client_metadata)
@@ -71,6 +100,10 @@ class TestAuthorizationCodeFlow:
 
     @pytest.mark.asyncio
     async def test_complete_auth_and_exchange_code(self, provider, sample_client_metadata):
+        """Test complete authorization code flow from authorization to token exchange.
+
+        Verifies authorization code generation, loading, and single-use consumption.
+        """
         from mcp.server.auth.provider import AuthorizationParams
 
         await provider.register_client(sample_client_metadata)
@@ -102,6 +135,7 @@ class TestAuthorizationCodeFlow:
 class TestTokenVerification:
     @pytest.mark.asyncio
     async def test_load_valid_access_token(self, provider, sample_client_metadata):
+        """Test loading and verifying valid access tokens."""
         from mcp.server.auth.provider import AuthorizationParams
 
         await provider.register_client(sample_client_metadata)
@@ -125,6 +159,7 @@ class TestTokenVerification:
 
     @pytest.mark.asyncio
     async def test_load_invalid_access_token(self, provider):
+        """Test that invalid access tokens return None."""
         result = await provider.load_access_token("invalid-token")
         assert result is None
 
@@ -132,6 +167,10 @@ class TestTokenVerification:
 class TestRefreshTokenFlow:
     @pytest.mark.asyncio
     async def test_refresh_token_exchange(self, provider, sample_client_metadata):
+        """Test refresh token exchange and rotation.
+
+        Verifies that old refresh token is rotated out after exchange.
+        """
         from mcp.server.auth.provider import AuthorizationParams
 
         await provider.register_client(sample_client_metadata)
@@ -163,6 +202,7 @@ class TestRefreshTokenFlow:
 class TestTokenRevocation:
     @pytest.mark.asyncio
     async def test_revoke_access_token(self, provider, sample_client_metadata):
+        """Test token revocation and blocklist enforcement."""
         from mcp.server.auth.provider import AuthorizationParams
 
         await provider.register_client(sample_client_metadata)

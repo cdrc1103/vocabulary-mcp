@@ -1,3 +1,8 @@
+"""Integration tests for MCP server.
+
+Tests end-to-end OAuth flows and vocabulary API integration.
+"""
+
 import os
 
 # Set env vars BEFORE importing server modules
@@ -11,6 +16,16 @@ from starlette.testclient import TestClient
 
 @pytest.fixture()
 def client(tmp_path):
+    """Create test HTTP client for MCP server integration testing.
+
+    Reloads server modules to pick up test environment variables.
+
+    Args:
+        tmp_path: pytest temporary directory fixture.
+
+    Yields:
+        TestClient: Starlette test client for the MCP HTTP server.
+    """
     os.environ["DATABASE_PATH"] = str(tmp_path / "test_oauth.db")
 
     import importlib
@@ -28,6 +43,7 @@ def client(tmp_path):
 
 class TestHealthEndpoint:
     def test_health_no_auth_required(self, client):
+        """Test health endpoint is accessible without authentication."""
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
@@ -35,6 +51,7 @@ class TestHealthEndpoint:
 
 class TestOAuthMetadata:
     def test_well_known_oauth_metadata(self, client):
+        """Test OAuth authorization server metadata is correctly advertised."""
         response = client.get("/.well-known/oauth-authorization-server")
         assert response.status_code == 200
         data = response.json()
@@ -44,6 +61,7 @@ class TestOAuthMetadata:
         assert data["code_challenge_methods_supported"] == ["S256"]
 
     def test_protected_resource_metadata(self, client):
+        """Test protected resource metadata is available for clients."""
         # FastMCP may serve this at a path derived from resource_server_url;
         # try the standard path first, fall back to the issuer-suffixed variant.
         response = client.get("/.well-known/oauth-protected-resource")
@@ -57,6 +75,7 @@ class TestOAuthMetadata:
 
 class TestDCR:
     def test_register_client(self, client):
+        """Test Dynamic Client Registration (DCR) endpoint."""
         response = client.post(
             "/register",
             json={
@@ -75,6 +94,7 @@ class TestDCR:
 
 class TestMCPEndpointRequiresAuth:
     def test_mcp_endpoint_returns_401_without_token(self, client):
+        """Test MCP endpoint requires authentication."""
         response = client.get("/mcp")
         # FastMCP may return 401 or 403 for unauthenticated requests
         assert response.status_code in (401, 403)
@@ -82,6 +102,7 @@ class TestMCPEndpointRequiresAuth:
 
 class TestLoginPage:
     def test_login_page_renders(self, client):
+        """Test login page renders at authorization submission endpoint."""
         response = client.get("/authorize/submit?auth_params=test-nonce")
         assert response.status_code == 200
         assert "Password" in response.text

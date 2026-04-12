@@ -1,3 +1,8 @@
+"""Pytest fixtures for MCP server tests.
+
+Provides test client, OAuth provider, and database fixtures for all MCP tests.
+"""
+
 import os
 
 os.environ.setdefault("VOCAB_API_KEY", "test-key")
