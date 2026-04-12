@@ -1,5 +1,5 @@
 const CACHE_NAME = "vocab-v1";
-const API_CACHE_NAME = "vocab-api-v1";
+const API_CACHE_NAME = "vocab-api-v2";
 const STATIC_ASSETS = ["/", "/index.html", "/app.js", "/style.css", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -30,13 +30,13 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // API requests (cross-origin backend): network-first, fall back to cache
-  if (url.pathname.startsWith("/vocabulary") || url.pathname === "/health") {
+  // API requests: network-first, fall back to cache
+  if (url.pathname.startsWith("/api/")) {
     event.respondWith(networkFirst(request));
     return;
   }
 
-  // Cross-origin requests to the backend host (when API_URL differs from PWA host)
+  // Cross-origin requests: network-first, fall back to cache
   if (url.origin !== self.location.origin) {
     event.respondWith(networkFirst(request));
     return;
