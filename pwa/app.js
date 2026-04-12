@@ -204,8 +204,16 @@ function showCard() {
   const card = dueCards[currentCardIndex];
   studyEl.progress.textContent = `${currentCardIndex + 1} / ${dueCards.length}`;
   studyEl.lang.textContent = card.language || "";
-  studyEl.word.textContent = card.word;
-  studyEl.definition.textContent = card.definition;
+
+  if (reverseMode) {
+    // Front: definition. Back: word + example.
+    studyEl.word.textContent = card.definition;
+    studyEl.definition.textContent = card.word;
+  } else {
+    // Front: word. Back: definition + example.
+    studyEl.word.textContent = card.word;
+    studyEl.definition.textContent = card.definition;
+  }
   studyEl.example.textContent = card.example || "";
 
   flashcard.classList.remove("flipped");
