@@ -130,15 +130,18 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   clearToken();
   showLogin();
 });
-document.getElementById("btn-study").addEventListener("click", loadStudy);
+
+// ── Study view ────────────────────────────────────────────────────────────────
+let reverseMode = false;
+
+document.getElementById("btn-study").addEventListener("click", () => loadStudy(reverseMode));
 document.getElementById("btn-browse").addEventListener("click", loadBrowse);
 document.getElementById("study-back").addEventListener("click", loadHome);
 document.getElementById("browse-back").addEventListener("click", loadHome);
 document.getElementById("study-done-btn").addEventListener("click", loadHome);
 document.getElementById("study-home-btn").addEventListener("click", loadHome);
-document.getElementById("study-again-btn").addEventListener("click", loadStudy);
+document.getElementById("study-again-btn").addEventListener("click", () => loadStudy(reverseMode));
 
-// ── Study view ────────────────────────────────────────────────────────────────
 let dueCards = [];
 let currentCardIndex = 0;
 let reviewedCount = 0;
@@ -157,9 +160,12 @@ const studyEl = {
   definition: document.getElementById("card-definition"),
   example:    document.getElementById("card-example"),
   ratings:    document.getElementById("rating-buttons"),
+  hint:       document.querySelector(".card-hint"),
 };
 
-async function loadStudy() {
+// reverse param allows callers to override the toggle state (e.g. study-again preserves mode)
+async function loadStudy(reverse = false) {
+  reverseMode = reverse;
   showView("study");
   // Clear any leftover error messages from a previous failed load
   studyEl.main.querySelectorAll(".error-msg").forEach((el) => el.remove());
@@ -199,9 +205,20 @@ function showCard() {
   const card = dueCards[currentCardIndex];
   studyEl.progress.textContent = `${currentCardIndex + 1} / ${dueCards.length}`;
   studyEl.lang.textContent = card.language || "";
-  studyEl.word.textContent = card.word;
-  studyEl.definition.textContent = card.definition;
+
+  if (reverseMode) {
+    // Front: definition. Back: word + example.
+    studyEl.word.textContent = card.definition || "";
+    studyEl.definition.textContent = card.word || "";
+  } else {
+    // Front: word. Back: definition + example.
+    studyEl.word.textContent = card.word || "";
+    studyEl.definition.textContent = card.definition || "";
+  }
   studyEl.example.textContent = card.example || "";
+
+  flashcard.setAttribute("aria-label", reverseMode ? "Tap to reveal word" : "Tap to reveal definition");
+  studyEl.hint.textContent = reverseMode ? "tap to reveal word" : "tap to reveal";
 
   flashcard.classList.remove("flipped");
   studyEl.ratings.classList.add("hidden");
@@ -371,6 +388,17 @@ function buildWordItem(word) {
   item.append(summary, detail);
   return item;
 }
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+document.getElementById("mode-toggle").addEventListener("click", (e) => {
+  const btn = e.target.closest(".mode-btn");
+  if (!btn) return;
+  reverseMode = btn.dataset.mode === "true";
+  document.querySelectorAll(".mode-btn").forEach((b) => {
+    b.classList.toggle("active", b === btn);
+    b.setAttribute("aria-pressed", String(b === btn));
+  });
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (getToken()) {

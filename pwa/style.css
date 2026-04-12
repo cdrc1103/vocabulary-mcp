@@ -63,6 +63,39 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .home-actions { display: flex; flex-direction: column; gap: 1rem; }
 .home-actions .btn { width: 100%; }
 
+/* ===== Mode toggle ===== */
+.mode-toggle {
+  display: flex;
+  background: #e0e7ff;
+  border-radius: 0.75rem;
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+.mode-btn {
+  flex: 1;
+  padding: 0.5rem 0;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #3730a3;
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+  min-height: 44px;
+}
+.mode-btn.active {
+  background: #4f46e5;
+  color: white;
+}
+.mode-btn:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+.mode-btn:not(.active):hover {
+  background: rgba(79, 70, 229, 0.12);
+}
+
 /* ===== Flashcard ===== */
 .study-main { flex: 1; padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 1.5rem; }
 .flashcard-scene {
