@@ -1,3 +1,9 @@
+"""Model Context Protocol (MCP) server for vocabulary management.
+
+Exposes vocabulary operations as MCP tools accessible to Claude and other AI clients.
+Supports OAuth 2.0 authentication with configurable authorization endpoints.
+"""
+
 import os
 from typing import Required, TypedDict
 
@@ -12,6 +18,15 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 
 class VocabWord(TypedDict, total=False):
+    """Schema for vocabulary word in MCP tool requests.
+
+    Attributes:
+        word: The vocabulary word (required).
+        definition: Definition of the word (required).
+        example: Optional example sentence or usage.
+        language: Optional language code.
+    """
+
     word: Required[str]
     definition: Required[str]
     example: str
@@ -72,6 +87,37 @@ mcp = FastMCP(
 async def bulk_add_vocabulary(
     words: list[VocabWord],
 ) -> str:
+    """Add multiple vocabulary words at once via MCP tool.
+
+    Creates vocabulary entries in bulk, accessible to Claude and other MCP clients.
+    Supports up to 50 words per request. Skips duplicate words automatically.
+
+    Args:
+        words: List of VocabWord entries, each containing word, definition, and
+            optional example and language fields.
+
+    Returns:
+        Success message with count of saved and skipped words, or error message
+        with HTTP status code or exception details if the request fails.
+
+    Example:
+        MCP clients can call this tool to save multiple words:
+        {
+            "words": [
+                {
+                    "word": "serendipity",
+                    "definition": "Finding valuable things by chance",
+                    "example": "It was pure serendipity that we met.",
+                    "language": "en"
+                },
+                {
+                    "word": "ephemeral",
+                    "definition": "Lasting for a very short time",
+                    "language": "en"
+                }
+            ]
+        }
+    """
     try:
         response = await _http_client.post(
             f"{VOCAB_API_URL}/vocabulary/bulk",
@@ -98,12 +144,38 @@ async def bulk_add_vocabulary(
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health(_request: Request) -> JSONResponse:
+    """Health check endpoint for MCP server.
+
+    Provides a lightweight status check for monitoring and load balancers.
+
+    Args:
+        _request: HTTP request (unused).
+
+    Returns:
+        JSON response with status "ok".
+    """
     return JSONResponse({"status": "ok"})
 
 
 @mcp.custom_route("/authorize/submit", methods=["GET", "POST"])
 async def authorize_submit(request: Request) -> HTMLResponse | RedirectResponse:
-    """Password-gated OAuth authorization endpoint."""
+    """Password-gated OAuth authorization endpoint.
+
+    Handles MCP OAuth 2.0 authorization flows with password verification.
+    GET requests display a login form; POST requests validate the password and
+    redirect to the authorization completion URL on success.
+
+    Args:
+        request: HTTP request containing auth_params and password (on POST).
+
+    Returns:
+        GET: HTML login form with optional error message.
+        POST: Redirect to authorization completion URL on success, or error form on failure.
+
+    Raises:
+        401 Unauthorized: If password is incorrect.
+        400 Bad Request: If authorization session has expired.
+    """
     if request.method == "GET":
         auth_params = request.query_params.get("auth_params", "")
         return HTMLResponse(oauth_provider.render_login_page(auth_params))
