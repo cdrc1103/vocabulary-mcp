@@ -96,6 +96,55 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   background: rgba(79, 70, 229, 0.12);
 }
 
+/* ===== Time filter ===== */
+.time-filter {
+  display: flex;
+  background: #e0e7ff;
+  border-radius: 0.75rem;
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+.time-btn {
+  flex: 1;
+  padding: 0.5rem 0;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #3730a3;
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+  min-height: 44px;
+}
+.time-btn.active {
+  background: #4f46e5;
+  color: white;
+}
+.time-btn:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+.time-btn:not(.active):hover {
+  background: rgba(79, 70, 229, 0.12);
+}
+.custom-date-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #e0e7ff;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  color: #1e1b4b;
+  background: white;
+  cursor: pointer;
+}
+.custom-date-input:focus {
+  outline: none;
+}
+.custom-date-input:focus-visible {
+  border-color: #4f46e5;
+}
+
 /* ===== Flashcard ===== */
 .study-main { flex: 1; padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 1.5rem; }
 .flashcard-scene {

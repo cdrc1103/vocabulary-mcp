@@ -233,6 +233,26 @@ class TestDueVocabulary:
         assert r.status_code == 200
         assert len(r.json()) == 1
 
+    def test_created_after_today_includes_new_word(self, client):
+        """Words added today appear when created_after is today."""
+        from datetime import date
+
+        client.post("/vocabulary", json=WORD_PAYLOAD, headers=AUTH_HEADERS)
+        today = date.today().isoformat()
+        r = client.get(f"/vocabulary/due?created_after={today}", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()) == 1
+
+    def test_created_after_tomorrow_excludes_new_word(self, client):
+        """Words added today are excluded when created_after is tomorrow."""
+        from datetime import date, timedelta
+
+        client.post("/vocabulary", json=WORD_PAYLOAD, headers=AUTH_HEADERS)
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        r = client.get(f"/vocabulary/due?created_after={tomorrow}", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()) == 0
+
 
 # ---------------------------------------------------------------------------
 # PATCH /vocabulary/{id}/review

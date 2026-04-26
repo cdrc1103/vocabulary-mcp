@@ -141,13 +141,17 @@ def list_vocabulary(
 
 
 @app.get("/vocabulary/due", response_model=list[VocabularyResponse])
-def due_vocabulary():
-    """Get words due for review (next_review <= now).
+def due_vocabulary(created_after: str | None = Query(None)):
+    """Get words due for review (next_review <= now), optionally filtered by creation date.
+
+    Args:
+        created_after: Optional ISO date string (YYYY-MM-DD). When provided,
+            only words created on or after this date are returned.
 
     Returns:
         List of VocabularyResponse objects ready for study.
     """
-    return get_due_words()
+    return get_due_words(created_after=created_after)
 
 
 @app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)

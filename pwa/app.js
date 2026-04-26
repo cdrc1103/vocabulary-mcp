@@ -104,35 +104,54 @@ function showErrorMsg(container, onlineMsg, offlineMsg) {
 }
 
 // ── Home view ─────────────────────────────────────────────────────────────────
-async function loadHome() {
-  showView("home");
-  document.getElementById("total-words").textContent = "—";
+async function refreshDueCount() {
   document.getElementById("due-words").textContent = "—";
   try {
-    const [allRes, dueRes] = await Promise.all([
-      apiFetch("/vocabulary?limit=1"),
-      apiFetch("/vocabulary/due"),
-    ]);
-    if (allRes.ok) {
-      const data = await allRes.json();
-      document.getElementById("total-words").textContent = data.total;
-    }
+    const path = createdAfter
+      ? `/vocabulary/due?created_after=${createdAfter}`
+      : "/vocabulary/due";
+    const dueRes = await apiFetch(path);
     if (dueRes.ok) {
       const due = await dueRes.json();
       document.getElementById("due-words").textContent = due.length;
     }
   } catch {
-    // offline or server down — stats stay at "—"
+    // offline or server down — count stays at "—"
   }
+}
+
+async function loadHome() {
+  showView("home");
+  document.getElementById("total-words").textContent = "—";
+  document.getElementById("due-words").textContent = "—";
+  document.getElementById("custom-date").max = new Date().toISOString().slice(0, 10);
+  await Promise.all([
+    apiFetch("/vocabulary?limit=1").then(async (res) => {
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById("total-words").textContent = data.total;
+      }
+    }).catch(() => {}),
+    refreshDueCount(),
+  ]);
 }
 
 document.getElementById("btn-logout").addEventListener("click", () => {
   clearToken();
   showLogin();
+  createdAfter = null;
+  document.querySelectorAll(".time-btn").forEach((b) => {
+    const isAll = b.dataset.days === "all";
+    b.classList.toggle("active", isAll);
+    b.setAttribute("aria-pressed", String(isAll));
+  });
+  document.getElementById("custom-date").classList.add("hidden");
+  document.getElementById("custom-date").value = "";
 });
 
 // ── Study view ────────────────────────────────────────────────────────────────
 let reverseMode = false;
+let createdAfter = null; // ISO date string or null for "All time"
 
 document.getElementById("btn-study").addEventListener("click", () => loadStudy(reverseMode));
 document.getElementById("btn-browse").addEventListener("click", loadBrowse);
@@ -176,7 +195,10 @@ async function loadStudy(reverse = false) {
   studyEl.progress.textContent = "";
 
   try {
-    const res = await apiFetch("/vocabulary/due");
+    const duePath = createdAfter
+      ? `/vocabulary/due?created_after=${createdAfter}`
+      : "/vocabulary/due";
+    const res = await apiFetch(duePath);
     if (!res.ok) throw new Error("Failed to load due words");
     dueCards = await res.json();
   } catch {
@@ -406,6 +428,43 @@ document.getElementById("mode-toggle").addEventListener("click", (e) => {
     b.classList.toggle("active", b === btn);
     b.setAttribute("aria-pressed", String(b === btn));
   });
+});
+
+// ── Time filter ───────────────────────────────────────────────────────────────
+document.getElementById("time-filter").addEventListener("click", (e) => {
+  const btn = e.target.closest(".time-btn");
+  if (!btn) return;
+
+  document.querySelectorAll(".time-btn").forEach((b) => {
+    b.classList.toggle("active", b === btn);
+    b.setAttribute("aria-pressed", String(b === btn));
+  });
+
+  const days = btn.dataset.days;
+  const customInput = document.getElementById("custom-date");
+
+  if (days === "custom") {
+    customInput.classList.remove("hidden");
+    return; // createdAfter unchanged until user picks a date
+  }
+
+  customInput.classList.add("hidden");
+  customInput.value = "";
+
+  if (days === "all") {
+    createdAfter = null;
+  } else {
+    const d = new Date();
+    d.setDate(d.getDate() - parseInt(days, 10));
+    createdAfter = d.toISOString().slice(0, 10);
+  }
+
+  refreshDueCount();
+});
+
+document.getElementById("custom-date").addEventListener("change", (e) => {
+  createdAfter = e.target.value || null;
+  refreshDueCount();
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
