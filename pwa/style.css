@@ -140,6 +140,8 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 }
 .custom-date-input:focus {
   outline: none;
+}
+.custom-date-input:focus-visible {
   border-color: #4f46e5;
 }
 
