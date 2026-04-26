@@ -125,26 +125,33 @@ async function loadHome() {
   document.getElementById("total-words").textContent = "—";
   document.getElementById("due-words").textContent = "—";
   document.getElementById("custom-date").max = new Date().toISOString().slice(0, 10);
-  try {
-    const allRes = await apiFetch("/vocabulary?limit=1");
-    if (allRes.ok) {
-      const data = await allRes.json();
-      document.getElementById("total-words").textContent = data.total;
-    }
-  } catch {
-    // offline or server down — stats stay at "—"
-  }
-  await refreshDueCount();
+  await Promise.all([
+    apiFetch("/vocabulary?limit=1").then(async (res) => {
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById("total-words").textContent = data.total;
+      }
+    }).catch(() => {}),
+    refreshDueCount(),
+  ]);
 }
 
 document.getElementById("btn-logout").addEventListener("click", () => {
   clearToken();
   showLogin();
+  createdAfter = null;
+  document.querySelectorAll(".time-btn").forEach((b) => {
+    const isAll = b.dataset.days === "all";
+    b.classList.toggle("active", isAll);
+    b.setAttribute("aria-pressed", String(isAll));
+  });
+  document.getElementById("custom-date").classList.add("hidden");
+  document.getElementById("custom-date").value = "";
 });
 
 // ── Study view ────────────────────────────────────────────────────────────────
 let reverseMode = false;
-let createdAfter = null; // ISO date string (YYYY-MM-DD) or null for "All time"
+let createdAfter = null; // ISO date string or null for "All time"
 
 document.getElementById("btn-study").addEventListener("click", () => loadStudy(reverseMode));
 document.getElementById("btn-browse").addEventListener("click", loadBrowse);
