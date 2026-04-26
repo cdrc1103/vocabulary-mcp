@@ -229,3 +229,25 @@ class TestDeleteWord:
     def test_nonexistent_returns_false(self):
         """Test delete_word returns False for non-existent word."""
         assert db.delete_word(9999) is False
+
+
+class TestGetDueWordsWithCreatedAfter:
+    def test_includes_word_created_today(self):
+        """Words created today are included when created_after is today."""
+        db.insert_word("bonjour", "hello", None, "French")
+        today = date.today().isoformat()
+        due = db.get_due_words(created_after=today)
+        assert len(due) == 1
+
+    def test_excludes_word_when_filter_is_tomorrow(self):
+        """Words created today are excluded when created_after is tomorrow."""
+        db.insert_word("bonjour", "hello", None, "French")
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        due = db.get_due_words(created_after=tomorrow)
+        assert len(due) == 0
+
+    def test_no_filter_returns_all_due(self):
+        """Calling get_due_words() with no argument preserves existing behaviour."""
+        db.insert_word("bonjour", "hello", None, "French")
+        due = db.get_due_words()
+        assert len(due) == 1

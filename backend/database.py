@@ -197,18 +197,28 @@ def get_words(language: str | None, limit: int, offset: int) -> dict:
     return {"total": total, "words": [dict(r) for r in rows]}
 
 
-def get_due_words() -> list[dict]:
+def get_due_words(created_after: str | None = None) -> list[dict]:
     """Retrieve words with next_review <= now (due for study).
+
+    Args:
+        created_after: Optional ISO date string (YYYY-MM-DD). When provided,
+            only words whose created_at is on or after this date are returned.
 
     Returns:
         List of vocabulary dicts for words ready to review, ordered by next_review date.
     """
     today = date.today().isoformat()
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM vocabulary WHERE next_review <= ? ORDER BY next_review ASC",
-            (today,),
-        ).fetchall()
+        if created_after:
+            rows = conn.execute(
+                "SELECT * FROM vocabulary WHERE next_review <= ? AND created_at >= ? ORDER BY next_review ASC",
+                (today, created_after),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM vocabulary WHERE next_review <= ? ORDER BY next_review ASC",
+                (today,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
