@@ -28,8 +28,8 @@ header {
   color: white;
   position: sticky; top: 0; z-index: 10;
 }
-header h1 { font-size: 1.5rem; font-weight: 700; flex: 1; }
-header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
+header h1 { font-size: 1.5rem; font-weight: 800; flex: 1; letter-spacing: -0.02em; }
+header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02em; }
 #study-progress { font-size: 0.9rem; opacity: 0.85; }
 
 /* ===== Buttons ===== */
@@ -168,7 +168,11 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   padding: 2rem; text-align: center;
   box-shadow: 0 4px 20px rgba(30,144,255,0.15);
 }
-.flashcard-front { background: white; }
+.flashcard-front {
+  background: white;
+  background-image: radial-gradient(circle, rgba(30,144,255,0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
 .flashcard-back { background: #FFFDE7; transform: rotateY(180deg); }
 .card-lang { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; margin-bottom: 0.5rem; }
 .card-word { font-size: 2rem; font-weight: 700; color: #0D1B2A; word-break: break-word; overflow-wrap: anywhere; }
@@ -203,6 +207,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .word-item {
   background: white; border-radius: 0.875rem; margin-bottom: 0.75rem;
   box-shadow: 0 1px 4px rgba(0,0,0,0.07); overflow: hidden;
+  border-left: 3px solid #1E90FF;
 }
 .word-summary { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; cursor: pointer; }
 .word-text { flex: 1; min-width: 0; }
@@ -233,12 +238,14 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 }
 .login-card {
   background: white; border-radius: 1.5rem;
+  border-top: 4px solid #FFC107;
   padding: 2.5rem 2rem; width: 100%; max-width: 360px;
   display: flex; flex-direction: column; gap: 1.25rem;
   box-shadow: 0 8px 40px rgba(0,0,0,0.2);
   text-align: center;
 }
-.login-card h1 { font-size: 2rem; font-weight: 700; color: #1E90FF; }
+.login-emoji { font-size: 3.5rem; line-height: 1; }
+.login-card h1 { font-size: 2.25rem; font-weight: 800; color: #1E90FF; }
 .login-subtitle { font-size: 0.95rem; color: #6b7280; }
 .login-input {
   width: 100%; padding: 0.75rem 1rem;
