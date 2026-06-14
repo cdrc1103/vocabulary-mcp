@@ -195,7 +195,7 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
 .btn-rating-hard  { background: #fef3c7; color: #92400e; }
 .btn-rating-okay  { background: #e0f2fe; color: #0369a1; }
 .btn-rating-good  { background: #d1fae5; color: #065f46; }
-.btn-rating-easy  { background: #E3F2FD; color: #1E90FF; }
+.btn-rating-easy  { background: #E3F2FD; color: #1565C0; }
 
 /* ===== Browse ===== */
 .browse-main { flex: 1; padding: 1.25rem; overflow-y: auto; }
