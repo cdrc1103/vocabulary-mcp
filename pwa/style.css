@@ -244,7 +244,7 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
   box-shadow: 0 8px 40px rgba(0,0,0,0.2);
   text-align: center;
 }
-.login-mascot { width: 180px; height: auto; }
+.login-mascot { width: 180px; height: auto; display: block; margin: 0 auto; }
 .login-card h1 { font-size: 2.25rem; font-weight: 800; color: #1E90FF; }
 .login-subtitle { font-size: 0.95rem; color: #6b7280; }
 .login-input {
