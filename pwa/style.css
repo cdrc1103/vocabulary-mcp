@@ -2,8 +2,8 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f8f8ff;
-  color: #1e1b4b;
+  background: #F0F8FF;
+  color: #0D1B2A;
   min-height: 100vh;
 }
 
@@ -24,7 +24,7 @@ header {
   padding-top: max(1rem, env(safe-area-inset-top));
   padding-left: max(1.25rem, env(safe-area-inset-left));
   padding-right: max(1.25rem, env(safe-area-inset-right));
-  background: #4f46e5;
+  background: #1E90FF;
   color: white;
   position: sticky; top: 0; z-index: 10;
 }
@@ -39,8 +39,8 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   transition: opacity 0.15s, transform 0.1s;
 }
 .btn:active { transform: scale(0.97); }
-.btn-primary { background: #4f46e5; color: white; }
-.btn-secondary { background: #e0e7ff; color: #3730a3; }
+.btn-primary { background: #1E90FF; color: white; }
+.btn-secondary { background: #E3F2FD; color: #1565C0; }
 .btn-icon {
   background: none; border: none; color: white; font-size: 1.4rem;
   cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 0.5rem;
@@ -55,10 +55,10 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .stat-card {
   background: white; border-radius: 1rem; padding: 1.5rem 1rem;
-  text-align: center; box-shadow: 0 2px 8px rgba(79,70,229,0.1);
+  text-align: center; box-shadow: 0 2px 8px rgba(30,144,255,0.1);
 }
 .stat-card.due { background: #ede9fe; }
-.stat-number { display: block; font-size: 2.5rem; font-weight: 700; color: #4f46e5; }
+.stat-number { display: block; font-size: 2.5rem; font-weight: 700; color: #1E90FF; }
 .stat-label { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
 .home-actions { display: flex; flex-direction: column; gap: 1rem; }
 .home-actions .btn { width: 100%; }
@@ -66,7 +66,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 /* ===== Mode toggle ===== */
 .mode-toggle {
   display: flex;
-  background: #e0e7ff;
+  background: #E3F2FD;
   border-radius: 0.75rem;
   padding: 0.25rem;
   gap: 0.25rem;
@@ -79,27 +79,27 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  color: #3730a3;
+  color: #1565C0;
   background: transparent;
   transition: background 0.15s, color 0.15s;
   min-height: 44px;
 }
 .mode-btn.active {
-  background: #4f46e5;
+  background: #1E90FF;
   color: white;
 }
 .mode-btn:focus-visible {
-  outline: 2px solid #4f46e5;
+  outline: 2px solid #1E90FF;
   outline-offset: 2px;
 }
 .mode-btn:not(.active):hover {
-  background: rgba(79, 70, 229, 0.12);
+  background: rgba(30, 144, 255, 0.12);
 }
 
 /* ===== Time filter ===== */
 .time-filter {
   display: flex;
-  background: #e0e7ff;
+  background: #E3F2FD;
   border-radius: 0.75rem;
   padding: 0.25rem;
   gap: 0.25rem;
@@ -112,29 +112,29 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  color: #3730a3;
+  color: #1565C0;
   background: transparent;
   transition: background 0.15s, color 0.15s;
   min-height: 44px;
 }
 .time-btn.active {
-  background: #4f46e5;
+  background: #1E90FF;
   color: white;
 }
 .time-btn:focus-visible {
-  outline: 2px solid #4f46e5;
+  outline: 2px solid #1E90FF;
   outline-offset: 2px;
 }
 .time-btn:not(.active):hover {
-  background: rgba(79, 70, 229, 0.12);
+  background: rgba(30, 144, 255, 0.12);
 }
 .custom-date-input {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 2px solid #e0e7ff;
+  border: 2px solid #E3F2FD;
   border-radius: 0.5rem;
   font-size: 0.9rem;
-  color: #1e1b4b;
+  color: #0D1B2A;
   background: white;
   cursor: pointer;
 }
@@ -142,7 +142,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   outline: none;
 }
 .custom-date-input:focus-visible {
-  border-color: #4f46e5;
+  border-color: #1E90FF;
 }
 
 /* ===== Flashcard ===== */
@@ -166,14 +166,14 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   border-radius: 1.25rem;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 2rem; text-align: center;
-  box-shadow: 0 4px 20px rgba(79,70,229,0.15);
+  box-shadow: 0 4px 20px rgba(30,144,255,0.15);
 }
 .flashcard-front { background: white; }
 .flashcard-back { background: #ede9fe; transform: rotateY(180deg); }
 .card-lang { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; margin-bottom: 0.5rem; }
-.card-word { font-size: 2rem; font-weight: 700; color: #1e1b4b; word-break: break-word; overflow-wrap: anywhere; }
+.card-word { font-size: 2rem; font-weight: 700; color: #0D1B2A; word-break: break-word; overflow-wrap: anywhere; }
 .card-hint { margin-top: 1rem; font-size: 0.8rem; color: #9ca3af; }
-.card-definition { font-size: 1.1rem; color: #1e1b4b; font-weight: 500; margin-bottom: 1rem; }
+.card-definition { font-size: 1.1rem; color: #0D1B2A; font-weight: 500; margin-bottom: 1rem; }
 .card-example { font-size: 0.9rem; color: #6b7280; font-style: italic; }
 
 /* ===== Rating buttons ===== */
@@ -191,7 +191,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .btn-rating-hard  { background: #fef3c7; color: #92400e; }
 .btn-rating-okay  { background: #e0f2fe; color: #0369a1; }
 .btn-rating-good  { background: #d1fae5; color: #065f46; }
-.btn-rating-easy  { background: #ede9fe; color: #4f46e5; }
+.btn-rating-easy  { background: #ede9fe; color: #1E90FF; }
 
 /* ===== Browse ===== */
 .browse-main { flex: 1; padding: 1.25rem; overflow-y: auto; }
@@ -227,7 +227,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 /* ===== Login overlay ===== */
 .login-overlay {
   position: fixed; inset: 0; z-index: 200;
-  background: #4f46e5;
+  background: #1E90FF;
   display: flex; align-items: center; justify-content: center;
   padding: 1.5rem;
 }
@@ -238,7 +238,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   box-shadow: 0 8px 40px rgba(0,0,0,0.2);
   text-align: center;
 }
-.login-card h1 { font-size: 2rem; font-weight: 700; color: #4f46e5; }
+.login-card h1 { font-size: 2rem; font-weight: 700; color: #1E90FF; }
 .login-subtitle { font-size: 0.95rem; color: #6b7280; }
 .login-input {
   width: 100%; padding: 0.75rem 1rem;
@@ -246,7 +246,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   font-size: 1rem; outline: none;
   transition: border-color 0.15s;
 }
-.login-input:focus { border-color: #4f46e5; }
+.login-input:focus { border-color: #1E90FF; }
 .login-btn { width: 100%; }
 
 /* ===== Offline banner ===== */
@@ -275,14 +275,14 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 
 /* ===== Tablet and up (≥640px): center content in a max-width column ===== */
 @media (min-width: 640px) {
-  body { background: #eef0ff; }
+  body { background: #E3F2FD; }
 
   /* Wrap each view in a centered column */
   .view {
     max-width: 640px;
     margin: 0 auto;
-    box-shadow: 0 0 60px rgba(79,70,229,0.1);
-    background: #f8f8ff;
+    box-shadow: 0 0 60px rgba(30,144,255,0.1);
+    background: #F0F8FF;
   }
 
   header {
