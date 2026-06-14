@@ -57,7 +57,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   background: white; border-radius: 1rem; padding: 1.5rem 1rem;
   text-align: center; box-shadow: 0 2px 8px rgba(30,144,255,0.1);
 }
-.stat-card.due { background: #ede9fe; }
+.stat-card.due { background: #FFF8E1; border-left: 4px solid #FFC107; }
 .stat-number { display: block; font-size: 2.5rem; font-weight: 700; color: #1E90FF; }
 .stat-label { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
 .home-actions { display: flex; flex-direction: column; gap: 1rem; }
@@ -169,7 +169,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
   box-shadow: 0 4px 20px rgba(30,144,255,0.15);
 }
 .flashcard-front { background: white; }
-.flashcard-back { background: #ede9fe; transform: rotateY(180deg); }
+.flashcard-back { background: #FFFDE7; transform: rotateY(180deg); }
 .card-lang { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; margin-bottom: 0.5rem; }
 .card-word { font-size: 2rem; font-weight: 700; color: #0D1B2A; word-break: break-word; overflow-wrap: anywhere; }
 .card-hint { margin-top: 1rem; font-size: 0.8rem; color: #9ca3af; }
@@ -191,7 +191,7 @@ header h2 { font-size: 1.25rem; font-weight: 600; flex: 1; }
 .btn-rating-hard  { background: #fef3c7; color: #92400e; }
 .btn-rating-okay  { background: #e0f2fe; color: #0369a1; }
 .btn-rating-good  { background: #d1fae5; color: #065f46; }
-.btn-rating-easy  { background: #ede9fe; color: #1E90FF; }
+.btn-rating-easy  { background: #E3F2FD; color: #1E90FF; }
 
 /* ===== Browse ===== */
 .browse-main { flex: 1; padding: 1.25rem; overflow-y: auto; }
