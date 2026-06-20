@@ -25,12 +25,14 @@ class VocabWord(TypedDict, total=False):
         definition: Definition of the word (required).
         example: Optional example sentence or usage.
         language: Optional language code.
+        session_name: Optional session name to assign the word to.
     """
 
     word: Required[str]
     definition: Required[str]
     example: str
     language: str
+    session_name: str
 
 
 VOCAB_API_URL = os.getenv("VOCAB_API_URL", "http://localhost:8000")
@@ -81,47 +83,34 @@ mcp = FastMCP(
     description=(
         "Add multiple vocabulary words at once to the personal study app (max 50). "
         "Use this when the user has asked to save several words from a conversation, "
-        "or when you've explained multiple words and want to offer to save them all."
+        "or when you've explained multiple words and want to offer to save them all. "
+        "Pass session_name to group all words under a named study session (e.g. 'Japanese N5 Verbs')."
     )
 )
 async def bulk_add_vocabulary(
     words: list[VocabWord],
+    session_name: str | None = None,
 ) -> str:
     """Add multiple vocabulary words at once via MCP tool.
 
     Creates vocabulary entries in bulk, accessible to Claude and other MCP clients.
     Supports up to 50 words per request. Skips duplicate words automatically.
+    When session_name is provided it overrides any per-word session_name.
 
     Args:
-        words: List of VocabWord entries, each containing word, definition, and
-            optional example and language fields.
+        words: List of VocabWord entries with word, definition, and optional fields.
+        session_name: Session name applied to all words in the batch. Auto-created if new.
 
     Returns:
-        Success message with count of saved and skipped words, or error message
-        with HTTP status code or exception details if the request fails.
-
-    Example:
-        MCP clients can call this tool to save multiple words:
-        {
-            "words": [
-                {
-                    "word": "serendipity",
-                    "definition": "Finding valuable things by chance",
-                    "example": "It was pure serendipity that we met.",
-                    "language": "en"
-                },
-                {
-                    "word": "ephemeral",
-                    "definition": "Lasting for a very short time",
-                    "language": "en"
-                }
-            ]
-        }
+        Success message with count of saved and skipped words, or error message.
     """
     try:
+        words_to_send = (
+            [{**w, "session_name": session_name} for w in words] if session_name else list(words)
+        )
         response = await _http_client.post(
             f"{VOCAB_API_URL}/vocabulary/bulk",
-            json={"words": words},
+            json={"words": words_to_send},
             headers={"X-API-Key": VOCAB_API_KEY},
             timeout=30.0,
         )
@@ -142,7 +131,8 @@ async def bulk_add_vocabulary(
 @mcp.tool(
     description=(
         "Add a single vocabulary word to the personal study app. "
-        "Use this when the user wants to save one word with its definition."
+        "Use this when the user wants to save one word with its definition. "
+        "Pass session_name to assign it to a named study session."
     )
 )
 async def add_vocabulary(
@@ -150,6 +140,7 @@ async def add_vocabulary(
     definition: str,
     example: str | None = None,
     language: str | None = None,
+    session_name: str | None = None,
 ) -> str:
     """Add a single vocabulary word via MCP tool.
 
@@ -160,19 +151,10 @@ async def add_vocabulary(
         definition: Definition of the word.
         example: Optional example sentence or usage.
         language: Optional language code.
+        session_name: Session name to assign the word to. Auto-created if new.
 
     Returns:
-        Success message with word details, or error message with HTTP status code
-        or exception details if the request fails.
-
-    Example:
-        MCP clients can call this tool to save a single word:
-        {
-            "word": "serendipity",
-            "definition": "Finding valuable things by chance",
-            "example": "It was pure serendipity that we met.",
-            "language": "en"
-        }
+        Success message with word details, or error message.
     """
     try:
         payload = {
@@ -180,6 +162,7 @@ async def add_vocabulary(
             "definition": definition,
             "example": example,
             "language": language or "unknown",
+            "session_name": session_name,
         }
         response = await _http_client.post(
             f"{VOCAB_API_URL}/vocabulary",

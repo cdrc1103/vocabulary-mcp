@@ -133,3 +133,90 @@ class TestBulkAddVocabularyErrors:
 # ---------------------------------------------------------------------------
 # HTTP auth middleware (covered by test_server_integration.py)
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# session_name forwarding
+# ---------------------------------------------------------------------------
+
+
+class TestAddVocabularySession:
+    def test_session_name_forwarded_to_api(self):
+        """Test add_vocabulary passes session_name in request body."""
+        fake = _make_response(
+            201,
+            {
+                "id": 1,
+                "word": "hola",
+                "definition": "hello",
+                "language": "es",
+                "created_at": "2026-06-20 10:00:00",
+                "next_review": "2026-06-20",
+                "interval": 1,
+                "ease_factor": 2.5,
+                "repetitions": 0,
+                "session_id": 2,
+                "session_name": "Spanish 1",
+            },
+        )
+        mock_post = AsyncMock(return_value=fake)
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(
+                srv.add_vocabulary(word="hola", definition="hello", session_name="Spanish 1")
+            )
+        _, kwargs = mock_post.call_args
+        assert kwargs["json"]["session_name"] == "Spanish 1"
+
+    def test_none_session_name_sent_as_none(self):
+        """Test add_vocabulary sends session_name=None when not specified."""
+        fake = _make_response(
+            201,
+            {
+                "id": 1,
+                "word": "x",
+                "definition": "y",
+                "language": "unknown",
+                "created_at": "2026-06-20 10:00:00",
+                "next_review": "2026-06-20",
+                "interval": 1,
+                "ease_factor": 2.5,
+                "repetitions": 0,
+                "session_id": 1,
+                "session_name": "misc",
+            },
+        )
+        mock_post = AsyncMock(return_value=fake)
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(srv.add_vocabulary(word="x", definition="y"))
+        _, kwargs = mock_post.call_args
+        assert kwargs["json"]["session_name"] is None
+
+
+class TestBulkAddVocabularySession:
+    def test_session_name_injected_into_all_words(self):
+        """Test bulk_add_vocabulary injects session_name into each word when provided."""
+        fake = _make_response(201, {"inserted": [], "skipped_count": 0})
+        mock_post = AsyncMock(return_value=fake)
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(
+                srv.bulk_add_vocabulary(
+                    words=[{"word": "a", "definition": "a"}, {"word": "b", "definition": "b"}],
+                    session_name="Japanese N5",
+                )
+            )
+        _, kwargs = mock_post.call_args
+        sent_words = kwargs["json"]["words"]
+        assert all(w["session_name"] == "Japanese N5" for w in sent_words)
+
+    def test_no_session_name_sends_words_unchanged(self):
+        """Test bulk_add_vocabulary sends words without injection when session_name is None."""
+        fake = _make_response(201, {"inserted": [], "skipped_count": 0})
+        mock_post = AsyncMock(return_value=fake)
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(
+                srv.bulk_add_vocabulary(
+                    words=[{"word": "a", "definition": "a", "session_name": "per-word-session"}]
+                )
+            )
+        _, kwargs = mock_post.call_args
+        sent_words = kwargs["json"]["words"]
+        assert sent_words[0]["session_name"] == "per-word-session"
