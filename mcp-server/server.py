@@ -106,7 +106,9 @@ async def bulk_add_vocabulary(
     """
     try:
         words_to_send = (
-            [{**w, "session_name": session_name} for w in words] if session_name else list(words)
+            [{**w, "session_name": session_name} for w in words]
+            if session_name is not None
+            else list(words)
         )
         response = await _http_client.post(
             f"{VOCAB_API_URL}/vocabulary/bulk",

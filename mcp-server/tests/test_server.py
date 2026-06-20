@@ -220,3 +220,18 @@ class TestBulkAddVocabularySession:
         _, kwargs = mock_post.call_args
         sent_words = kwargs["json"]["words"]
         assert sent_words[0]["session_name"] == "per-word-session"
+
+    def test_top_level_session_name_overrides_per_word_session_name(self):
+        """Test bulk_add_vocabulary top-level session_name overrides per-word session_name."""
+        fake = _make_response(201, {"inserted": [], "skipped_count": 0})
+        mock_post = AsyncMock(return_value=fake)
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(
+                srv.bulk_add_vocabulary(
+                    words=[{"word": "a", "definition": "a", "session_name": "old-session"}],
+                    session_name="new-session",
+                )
+            )
+        _, kwargs = mock_post.call_args
+        sent_words = kwargs["json"]["words"]
+        assert sent_words[0]["session_name"] == "new-session"
