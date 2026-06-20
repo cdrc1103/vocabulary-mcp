@@ -103,13 +103,19 @@ function showErrorMsg(container, onlineMsg, offlineMsg) {
   container.appendChild(msg);
 }
 
+// ── State ─────────────────────────────────────────────────────────────────────
+let reverseMode = false;
+let createdAfter = null; // ISO date string or null for "All time"
+let currentSessionId = null; // number or null for "All sessions"
+
 // ── Home view ─────────────────────────────────────────────────────────────────
 async function refreshDueCount() {
   document.getElementById("due-words").textContent = "—";
   try {
-    const path = createdAfter
-      ? `/vocabulary/due?created_after=${createdAfter}`
-      : "/vocabulary/due";
+    const params = new URLSearchParams();
+    if (createdAfter) params.set("created_after", createdAfter);
+    if (currentSessionId !== null) params.set("session_id", String(currentSessionId));
+    const path = params.size ? `/vocabulary/due?${params}` : "/vocabulary/due";
     const dueRes = await apiFetch(path);
     if (dueRes.ok) {
       const due = await dueRes.json();
@@ -126,6 +132,7 @@ async function loadHome() {
   document.getElementById("due-words").textContent = "—";
   document.getElementById("custom-date").max = new Date().toISOString().slice(0, 10);
   await Promise.all([
+    loadSessions(),
     apiFetch("/vocabulary?limit=1").then(async (res) => {
       if (res.ok) {
         const data = await res.json();
@@ -136,10 +143,40 @@ async function loadHome() {
   ]);
 }
 
+async function loadSessions() {
+  const container = document.getElementById("session-filter");
+  container.innerHTML = "";
+  try {
+    const res = await apiFetch("/sessions");
+    if (!res.ok) return;
+    const sessions = await res.json();
+
+    const allBtn = document.createElement("button");
+    allBtn.className = "session-btn" + (currentSessionId === null ? " active" : "");
+    allBtn.dataset.sessionId = "all";
+    allBtn.textContent = "All";
+    allBtn.setAttribute("aria-pressed", String(currentSessionId === null));
+    container.appendChild(allBtn);
+
+    for (const s of sessions) {
+      const btn = document.createElement("button");
+      const isActive = currentSessionId === s.id;
+      btn.className = "session-btn" + (isActive ? " active" : "");
+      btn.dataset.sessionId = String(s.id);
+      btn.textContent = s.name;
+      btn.setAttribute("aria-pressed", String(isActive));
+      container.appendChild(btn);
+    }
+  } catch {
+    // offline — session filter stays empty
+  }
+}
+
 document.getElementById("btn-logout").addEventListener("click", () => {
   clearToken();
   showLogin();
   createdAfter = null;
+  currentSessionId = null;
   document.querySelectorAll(".time-btn").forEach((b) => {
     const isAll = b.dataset.days === "all";
     b.classList.toggle("active", isAll);
@@ -147,12 +184,10 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   });
   document.getElementById("custom-date").classList.add("hidden");
   document.getElementById("custom-date").value = "";
+  document.getElementById("session-filter").innerHTML = "";
 });
 
 // ── Study view ────────────────────────────────────────────────────────────────
-let reverseMode = false;
-let createdAfter = null; // ISO date string or null for "All time"
-
 document.getElementById("btn-study").addEventListener("click", () => loadStudy(reverseMode));
 document.getElementById("btn-browse").addEventListener("click", loadBrowse);
 document.getElementById("study-back").addEventListener("click", loadHome);
@@ -195,9 +230,10 @@ async function loadStudy(reverse = false) {
   studyEl.progress.textContent = "";
 
   try {
-    const duePath = createdAfter
-      ? `/vocabulary/due?created_after=${createdAfter}`
-      : "/vocabulary/due";
+    const params = new URLSearchParams();
+    if (createdAfter) params.set("created_after", createdAfter);
+    if (currentSessionId !== null) params.set("session_id", String(currentSessionId));
+    const duePath = params.size ? `/vocabulary/due?${params}` : "/vocabulary/due";
     const res = await apiFetch(duePath);
     if (!res.ok) throw new Error("Failed to load due words");
     dueCards = await res.json();
@@ -333,12 +369,16 @@ async function loadBrowse() {
   document.getElementById("browse-loading").classList.remove("hidden");
   document.getElementById("browse-empty").classList.add("hidden");
 
-  let words;
+  let words, sessions;
   try {
-    const res = await apiFetch("/vocabulary");
-    if (!res.ok) throw new Error();
-    const data = await res.json();
+    const [wordsRes, sessionsRes] = await Promise.all([
+      apiFetch("/vocabulary"),
+      apiFetch("/sessions"),
+    ]);
+    if (!wordsRes.ok) throw new Error();
+    const data = await wordsRes.json();
     words = data.words;
+    sessions = sessionsRes.ok ? await sessionsRes.json() : [];
   } catch {
     document.getElementById("browse-loading").classList.add("hidden");
     showErrorMsg(browseList, "Failed to load words.", "You're offline.");
@@ -352,24 +392,37 @@ async function loadBrowse() {
     return;
   }
 
-  // Group by language
+  // Build session date lookup for headings
+  const sessionDates = Object.fromEntries(sessions.map((s) => [s.name, s.date]));
+
+  // Group by session_name
   const groups = {};
   for (const w of words) {
-    const lang = w.language || "unknown";
-    if (!groups[lang]) groups[lang] = [];
-    groups[lang].push(w);
+    const key = w.session_name || "misc";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(w);
   }
+
+  // Sort: most recent session first (by date), misc always last
+  const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
+    if (a === "misc") return 1;
+    if (b === "misc") return -1;
+    const dateA = sessionDates[a] || "0";
+    const dateB = sessionDates[b] || "0";
+    return dateB.localeCompare(dateA);
+  });
 
   // Build into a DocumentFragment to batch all DOM writes into one reflow
   const frag = document.createDocumentFragment();
-  for (const [lang, langWords] of Object.entries(groups).sort()) {
+  for (const [sessionName, sessionWords] of sortedEntries) {
     const group = document.createElement("div");
     group.className = "lang-group";
     const heading = document.createElement("div");
     heading.className = "lang-heading";
-    heading.textContent = lang;
+    const sessionDate = sessionDates[sessionName];
+    heading.textContent = sessionDate ? `${sessionName} — ${sessionDate}` : sessionName;
     group.appendChild(heading);
-    for (const word of langWords) group.appendChild(buildWordItem(word));
+    for (const word of sessionWords) group.appendChild(buildWordItem(word));
     frag.appendChild(group);
   }
   browseList.appendChild(frag);
@@ -464,6 +517,20 @@ document.getElementById("time-filter").addEventListener("click", (e) => {
 
 document.getElementById("custom-date").addEventListener("change", (e) => {
   createdAfter = e.target.value || null;
+  refreshDueCount();
+});
+
+document.getElementById("session-filter").addEventListener("click", (e) => {
+  const btn = e.target.closest(".session-btn");
+  if (!btn) return;
+
+  document.querySelectorAll(".session-btn").forEach((b) => {
+    b.classList.toggle("active", b === btn);
+    b.setAttribute("aria-pressed", String(b === btn));
+  });
+
+  const sid = btn.dataset.sessionId;
+  currentSessionId = sid === "all" ? null : parseInt(sid, 10);
   refreshDueCount();
 });
 
