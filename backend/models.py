@@ -2,10 +2,26 @@
 
 This module defines data validation and serialization models using Pydantic v2,
 including request payloads (VocabularyCreate, LoginRequest) and response models
-(VocabularyResponse, VocabularyListResponse).
+(VocabularyResponse, VocabularyListResponse, SessionResponse).
 """
 
 from pydantic import BaseModel, Field
+
+
+class SessionResponse(BaseModel):
+    """Response model for a learning session.
+
+    Attributes:
+        id: Unique session identifier.
+        name: Session name (unique across all sessions).
+        date: ISO date string YYYY-MM-DD for the study day.
+        created_at: ISO 8601 timestamp of creation.
+    """
+
+    id: int
+    name: str
+    date: str
+    created_at: str
 
 
 class VocabularyCreate(BaseModel):
@@ -16,18 +32,21 @@ class VocabularyCreate(BaseModel):
         definition: Definition of the word (required).
         example: Optional example sentence or usage.
         language: Language code (defaults to "unknown").
+        session_name: Session to assign the word to. Auto-created if new. Defaults to "misc".
     """
 
     word: str
     definition: str
     example: str | None = None
     language: str = "unknown"
+    session_name: str | None = None
 
 
 class VocabularyResponse(BaseModel):
     """Response model for a vocabulary word.
 
-    Includes SRS (Spaced Repetition System) metadata calculated by the SM-2 algorithm.
+    Includes SRS (Spaced Repetition System) metadata calculated by the SM-2 algorithm
+    and session assignment.
 
     Attributes:
         id: Unique word identifier.
@@ -40,6 +59,8 @@ class VocabularyResponse(BaseModel):
         interval: Days until next review (SM-2).
         ease_factor: Difficulty multiplier (SM-2).
         repetitions: Number of successful reviews (SM-2).
+        session_id: ID of the session this word belongs to.
+        session_name: Name of the session this word belongs to.
     """
 
     id: int
@@ -52,6 +73,8 @@ class VocabularyResponse(BaseModel):
     interval: int
     ease_factor: float
     repetitions: int
+    session_id: int | None = None
+    session_name: str | None = None
 
 
 class VocabularyListResponse(BaseModel):
@@ -90,7 +113,7 @@ class BulkVocabularyCreate(BaseModel):
     """Request model for bulk adding vocabulary words.
 
     Attributes:
-        words: List of 1-50 VocabularyCreate objects.
+        words: List of 1-50 VocabularyCreate objects. Each word may specify session_name.
     """
 
     words: list[VocabularyCreate] = Field(min_length=1, max_length=50)
