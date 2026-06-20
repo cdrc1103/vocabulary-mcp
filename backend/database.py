@@ -1,8 +1,8 @@
 """Database operations for vocabulary management.
 
-Provides SQLite database access for vocabulary words, including CRUD operations,
-SRS (SM-2) calculations, and spaced repetition scheduling. Database is initialized
-on app startup and persists vocabulary with review intervals.
+Provides SQLite database access for vocabulary words and sessions, including CRUD
+operations, SRS (SM-2) calculations, and spaced repetition scheduling. Sessions
+allow grouping vocabulary by named study topics.
 """
 
 import os
@@ -24,12 +24,22 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db():
-    """Initialize SQLite database and create vocabulary table if missing.
+    """Initialize SQLite database and create tables if missing.
 
-    Creates the vocabulary table with columns for word metadata and SM-2 algorithm state.
-    Called during application startup via lifespan context manager.
+    Creates the sessions table, the vocabulary table, and a unique index.
+    Adds the session_id column via an idempotent ALTER TABLE (catches
+    OperationalError if the column already exists). Seeds the 'misc' session
+    and migrates pre-existing vocabulary rows with NULL session_id to it.
     """
     with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL UNIQUE,
+                date       TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS vocabulary (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,6 +59,53 @@ def init_db():
             CREATE UNIQUE INDEX IF NOT EXISTS uix_word_language
             ON vocabulary (word, language)
         """)
+        try:
+            conn.execute(
+                "ALTER TABLE vocabulary ADD COLUMN session_id INTEGER REFERENCES sessions(id)"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists on subsequent startups
+        today = date.today().isoformat()
+        conn.execute("INSERT OR IGNORE INTO sessions (name, date) VALUES ('misc', ?)", (today,))
+        conn.execute("""
+            UPDATE vocabulary
+            SET session_id = (SELECT id FROM sessions WHERE name = 'misc')
+            WHERE session_id IS NULL
+        """)
+
+
+def get_or_create_session(name: str, session_date: str | None = None) -> dict:
+    """Get an existing session by name or create it if it does not exist.
+
+    Uses INSERT OR IGNORE so concurrent/duplicate calls with the same name
+    are no-ops on the INSERT; the subsequent SELECT always returns the canonical row.
+
+    Args:
+        name: Session name (unique key).
+        session_date: ISO date string YYYY-MM-DD. Defaults to today if None.
+
+    Returns:
+        Dictionary with session id, name, date, and created_at.
+    """
+    resolved_date = session_date or date.today().isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO sessions (name, date) VALUES (?, ?)",
+            (name, resolved_date),
+        )
+        row = conn.execute("SELECT * FROM sessions WHERE name = ?", (name,)).fetchone()
+    return dict(row)
+
+
+def get_sessions() -> list[dict]:
+    """Return all sessions ordered by date descending.
+
+    Returns:
+        List of session dicts with id, name, date, created_at.
+    """
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM sessions ORDER BY date DESC").fetchall()
+    return [dict(r) for r in rows]
 
 
 def apply_sm2(interval: int, ease: float, reps: int, quality: int):
@@ -81,7 +138,13 @@ def apply_sm2(interval: int, ease: float, reps: int, quality: int):
         return new_interval, new_ease, reps + 1
 
 
-def insert_word(word: str, definition: str, example: str | None, language: str) -> dict:
+def insert_word(
+    word: str,
+    definition: str,
+    example: str | None,
+    language: str,
+    session_name: str | None = None,
+) -> dict:
     """Insert a new vocabulary word with SRS metadata.
 
     Args:
@@ -89,20 +152,22 @@ def insert_word(word: str, definition: str, example: str | None, language: str) 
         definition: Definition of the word.
         example: Optional example sentence.
         language: Language code or name.
+        session_name: Session to assign the word to. Defaults to 'misc'.
 
     Returns:
-        Dictionary with word data including id, created_at, and SM-2 fields.
+        Dictionary with word data including id, created_at, SM-2 fields, session_id, session_name.
     """
-    # Compute defaults in Python so we can return them without a second SELECT.
     created_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     next_review = date.today().isoformat()
+    resolved_name = session_name or "misc"
+    session = get_or_create_session(resolved_name)
     with get_connection() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO vocabulary (word, definition, example, language, created_at, next_review)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO vocabulary (word, definition, example, language, created_at, next_review, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (word, definition, example, language, created_at, next_review),
+            (word, definition, example, language, created_at, next_review, session["id"]),
         )
     return {
         "id": cursor.lastrowid,
@@ -115,6 +180,8 @@ def insert_word(word: str, definition: str, example: str | None, language: str) 
         "interval": 1,
         "ease_factor": 2.5,
         "repetitions": 0,
+        "session_id": session["id"],
+        "session_name": resolved_name,
     }
 
 
@@ -122,14 +189,14 @@ def insert_words_bulk(words: list[dict]) -> dict:
     """Insert multiple vocabulary words in a single transaction.
 
     Uses INSERT OR IGNORE to skip duplicates (word + language combinations).
-    Useful for bulk imports where some words may already exist.
+    Resolves unique session names to IDs upfront via upsert, then assigns
+    each word its session_id.
 
     Args:
-        words: List of dictionaries with word, definition, example, language keys.
+        words: List of dicts with word, definition, example, language, session_name keys.
 
     Returns:
-        Dictionary with 'inserted' list of created VocabularyResponse objects and
-        'skipped_count' for duplicate entries not inserted.
+        Dictionary with 'inserted' list of created word dicts and 'skipped_count'.
     """
     if not words:
         return {"inserted": [], "skipped_count": 0}
@@ -137,14 +204,19 @@ def insert_words_bulk(words: list[dict]) -> dict:
     created_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     next_review = date.today().isoformat()
 
+    unique_names = {w.get("session_name") or "misc" for w in words}
+    session_map = {name: get_or_create_session(name) for name in unique_names}
+
     with get_connection() as conn:
         inserted = []
         for w in words:
+            sname = w.get("session_name") or "misc"
+            session = session_map[sname]
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO vocabulary
-                    (word, definition, example, language, created_at, next_review)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (word, definition, example, language, created_at, next_review, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     w["word"],
@@ -153,6 +225,7 @@ def insert_words_bulk(words: list[dict]) -> dict:
                     w.get("language", "unknown"),
                     created_at,
                     next_review,
+                    session["id"],
                 ),
             )
             if cursor.rowcount > 0:
@@ -168,58 +241,91 @@ def insert_words_bulk(words: list[dict]) -> dict:
                         "interval": 1,
                         "ease_factor": 2.5,
                         "repetitions": 0,
+                        "session_id": session["id"],
+                        "session_name": sname,
                     }
                 )
 
     return {"inserted": inserted, "skipped_count": len(words) - len(inserted)}
 
 
-def get_words(language: str | None, limit: int, offset: int) -> dict:
-    """Retrieve paginated vocabulary words.
+def get_words(
+    language: str | None,
+    limit: int,
+    offset: int,
+    session_id: int | None = None,
+) -> dict:
+    """Retrieve paginated vocabulary words including session info.
 
     Args:
-        language: Optional filter by language code. If None, returns all words.
+        language: Optional filter by language code. If None, returns all languages.
         limit: Max number of results (typically 100).
         offset: Number of results to skip for pagination.
+        session_id: Optional filter by session ID.
 
     Returns:
-        Dictionary with 'total' count and 'words' list of vocabulary dicts.
+        Dictionary with 'total' count and 'words' list. Each word includes session_name.
     """
-    where = "WHERE language = ?" if language else ""
-    count_params = (language,) if language else ()
-    page_params = (language, limit, offset) if language else (limit, offset)
+    conditions: list[str] = []
+    params: list = []
+    if language:
+        conditions.append("v.language = ?")
+        params.append(language)
+    if session_id is not None:
+        conditions.append("v.session_id = ?")
+        params.append(session_id)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     with get_connection() as conn:
-        total = conn.execute(f"SELECT COUNT(*) FROM vocabulary {where}", count_params).fetchone()[0]
+        total = conn.execute(f"SELECT COUNT(*) FROM vocabulary v {where}", params).fetchone()[0]
         rows = conn.execute(
-            f"SELECT * FROM vocabulary {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            page_params,
+            f"""
+            SELECT v.*, s.name AS session_name
+            FROM vocabulary v
+            LEFT JOIN sessions s ON v.session_id = s.id
+            {where}
+            ORDER BY v.created_at DESC LIMIT ? OFFSET ?
+            """,
+            [*params, limit, offset],
         ).fetchall()
     return {"total": total, "words": [dict(r) for r in rows]}
 
 
-def get_due_words(created_after: str | None = None) -> list[dict]:
+def get_due_words(
+    created_after: str | None = None,
+    session_id: int | None = None,
+) -> list[dict]:
     """Retrieve words with next_review <= now (due for study).
 
     Args:
-        created_after: Optional ISO date string (YYYY-MM-DD). When provided,
-            only words whose created_at is on or after this date are returned.
+        created_after: Optional ISO date string (YYYY-MM-DD). Filters to words
+            created on or after this date.
+        session_id: Optional filter by session ID. Stacks with created_after (AND).
 
     Returns:
-        List of vocabulary dicts for words ready to review, ordered by next_review date.
+        List of vocabulary dicts including session_name, ordered by next_review ASC.
     """
     today = date.today().isoformat()
+    conditions = ["v.next_review <= ?"]
+    params: list = [today]
+    if created_after:
+        conditions.append("v.created_at >= ?")
+        params.append(created_after)
+    if session_id is not None:
+        conditions.append("v.session_id = ?")
+        params.append(session_id)
+    where = "WHERE " + " AND ".join(conditions)
     with get_connection() as conn:
-        if created_after:
-            rows = conn.execute(
-                "SELECT * FROM vocabulary WHERE next_review <= ? AND created_at >= ? ORDER BY next_review ASC",
-                (today, created_after),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM vocabulary WHERE next_review <= ? ORDER BY next_review ASC",
-                (today,),
-            ).fetchall()
-        return [dict(r) for r in rows]
+        rows = conn.execute(
+            f"""
+            SELECT v.*, s.name AS session_name
+            FROM vocabulary v
+            LEFT JOIN sessions s ON v.session_id = s.id
+            {where}
+            ORDER BY v.next_review ASC
+            """,
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def review_word(word_id: int, quality: int) -> dict | None:
@@ -233,10 +339,18 @@ def review_word(word_id: int, quality: int) -> dict | None:
         quality: SM-2 quality score (0-5, where 3+ is passing).
 
     Returns:
-        Updated vocabulary dict with new SM-2 state, or None if word_id not found.
+        Updated vocabulary dict including session_name, or None if word_id not found.
     """
     with get_connection() as conn:
-        row = conn.execute("SELECT * FROM vocabulary WHERE id = ?", (word_id,)).fetchone()
+        row = conn.execute(
+            """
+            SELECT v.*, s.name AS session_name
+            FROM vocabulary v
+            LEFT JOIN sessions s ON v.session_id = s.id
+            WHERE v.id = ?
+            """,
+            (word_id,),
+        ).fetchone()
         if row is None:
             return None
 
@@ -255,7 +369,6 @@ def review_word(word_id: int, quality: int) -> dict | None:
             (new_interval, new_ease, new_reps, next_review, word_id),
         )
 
-    # Return merged dict from the pre-fetch + computed SM-2 values — no second SELECT needed.
     return {
         **row,
         "interval": new_interval,

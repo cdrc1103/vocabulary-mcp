@@ -251,3 +251,129 @@ class TestGetDueWordsWithCreatedAfter:
         db.insert_word("bonjour", "hello", None, "French")
         due = db.get_due_words()
         assert len(due) == 1
+
+
+class TestSessions:
+    def test_get_or_create_session_creates_new(self):
+        """Test get_or_create_session inserts and returns a new session."""
+        session = db.get_or_create_session("Japanese N5", "2026-06-20")
+        assert session["name"] == "Japanese N5"
+        assert session["date"] == "2026-06-20"
+        assert isinstance(session["id"], int)
+
+    def test_get_or_create_session_returns_existing(self):
+        """Test get_or_create_session returns the same row on duplicate name."""
+        s1 = db.get_or_create_session("Japanese N5", "2026-06-20")
+        s2 = db.get_or_create_session("Japanese N5", "2026-06-21")  # different date ignored
+        assert s1["id"] == s2["id"]
+        assert s2["date"] == "2026-06-20"  # original date preserved
+
+    def test_get_or_create_session_defaults_date_to_today(self):
+        """Test get_or_create_session uses today when no date given."""
+        from datetime import date
+
+        session = db.get_or_create_session("No Date Session")
+        assert session["date"] == date.today().isoformat()
+
+    def test_get_sessions_ordered_by_date_desc(self):
+        """Test get_sessions returns sessions most recent first."""
+        db.get_or_create_session("Old", "2026-06-18")
+        db.get_or_create_session("New", "2026-06-20")
+        sessions = db.get_sessions()
+        names = [s["name"] for s in sessions]
+        assert names.index("New") < names.index("Old")
+
+    def test_get_sessions_includes_misc(self):
+        """Test get_sessions returns the auto-seeded misc session."""
+        sessions = db.get_sessions()
+        assert any(s["name"] == "misc" for s in sessions)
+
+    def test_insert_word_with_session_name(self):
+        """Test insert_word assigns word to named session."""
+        word = db.insert_word("bonjour", "hello", None, "fr", session_name="French 1")
+        assert word["session_name"] == "French 1"
+        assert isinstance(word["session_id"], int)
+
+    def test_insert_word_defaults_to_misc(self):
+        """Test insert_word assigns to misc when no session_name given."""
+        word = db.insert_word("hola", "hello", None, "es")
+        assert word["session_name"] == "misc"
+
+    def test_get_words_filtered_by_session_id(self):
+        """Test get_words returns only words in the given session."""
+        s = db.get_or_create_session("Spanish 1", "2026-06-20")
+        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
+        db.insert_word("adiós", "goodbye", None, "es")  # goes to misc
+        result = db.get_words(language=None, limit=100, offset=0, session_id=s["id"])
+        assert result["total"] == 1
+        assert result["words"][0]["word"] == "hola"
+
+    def test_get_words_includes_session_name(self):
+        """Test get_words includes session_name in each word dict."""
+        db.insert_word("ciao", "hi", None, "it", session_name="Italian 1")
+        result = db.get_words(language=None, limit=100, offset=0)
+        words_by_name = {w["word"]: w for w in result["words"]}
+        assert words_by_name["ciao"]["session_name"] == "Italian 1"
+
+    def test_get_due_words_filtered_by_session_id(self):
+        """Test get_due_words returns only words in the given session."""
+        s = db.get_or_create_session("French 1", "2026-06-20")
+        db.insert_word("bonjour", "hello", None, "fr", session_name="French 1")
+        db.insert_word("au revoir", "goodbye", None, "fr")  # misc
+        due = db.get_due_words(session_id=s["id"])
+        words = [w["word"] for w in due]
+        assert "bonjour" in words
+        assert "au revoir" not in words
+
+    def test_get_due_words_includes_session_name(self):
+        """Test get_due_words includes session_name in each word dict."""
+        db.insert_word("merci", "thank you", None, "fr", session_name="French 1")
+        due = db.get_due_words()
+        word = next(w for w in due if w["word"] == "merci")
+        assert word["session_name"] == "French 1"
+
+    def test_init_db_is_idempotent(self):
+        """Test init_db can be called multiple times without error."""
+        db.init_db()
+        db.init_db()  # should not raise
+
+    def test_existing_words_migrated_to_misc(self):
+        """Test that words with NULL session_id are assigned to misc on init_db."""
+        import sqlite3
+
+        import database as db_module
+
+        # Insert a word directly bypassing session logic
+        conn = sqlite3.connect(db_module.DATABASE_PATH)
+        conn.execute(
+            "INSERT INTO vocabulary (word, definition, language) VALUES ('raw', 'raw', 'en')"
+        )
+        conn.commit()
+        conn.close()
+        db.init_db()  # re-run migration
+        result = db.get_words(language=None, limit=100, offset=0)
+        raw = next(w for w in result["words"] if w["word"] == "raw")
+        assert raw["session_name"] == "misc"
+
+    def test_bulk_insert_assigns_session_name(self):
+        """Test insert_words_bulk assigns session to all words."""
+        result = db.insert_words_bulk(
+            [
+                {"word": "x", "definition": "x", "language": "en", "session_name": "Session A"},
+                {"word": "y", "definition": "y", "language": "en", "session_name": "Session A"},
+            ]
+        )
+        assert len(result["inserted"]) == 2
+        assert all(w["session_name"] == "Session A" for w in result["inserted"])
+
+    def test_bulk_insert_mixed_sessions(self):
+        """Test insert_words_bulk handles words with different session names."""
+        result = db.insert_words_bulk(
+            [
+                {"word": "x", "definition": "x", "language": "en", "session_name": "Sess A"},
+                {"word": "y", "definition": "y", "language": "en", "session_name": "Sess B"},
+            ]
+        )
+        inserted_by_word = {w["word"]: w for w in result["inserted"]}
+        assert inserted_by_word["x"]["session_name"] == "Sess A"
+        assert inserted_by_word["y"]["session_name"] == "Sess B"
