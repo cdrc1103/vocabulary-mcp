@@ -399,3 +399,133 @@ class TestDeleteVocabulary:
         """Test deleting non-existent word returns 404."""
         r = client.delete("/vocabulary/9999", headers=AUTH_HEADERS)
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /sessions
+# ---------------------------------------------------------------------------
+
+
+class TestListSessions:
+    def test_returns_empty_list_on_fresh_db(self, client):
+        """Test GET /sessions returns at least the seeded misc session."""
+        r = client.get("/sessions", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        sessions = r.json()
+        assert isinstance(sessions, list)
+        assert any(s["name"] == "misc" for s in sessions)
+
+    def test_returns_created_sessions(self, client):
+        """Test GET /sessions includes sessions created via POST /vocabulary."""
+        client.post(
+            "/vocabulary",
+            json={
+                "word": "bonjour",
+                "definition": "hello",
+                "language": "fr",
+                "session_name": "French 101",
+            },
+            headers=AUTH_HEADERS,
+        )
+        r = client.get("/sessions", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        names = [s["name"] for s in r.json()]
+        assert "French 101" in names
+
+    def test_session_has_required_fields(self, client):
+        """Test session objects include id, name, date, created_at."""
+        r = client.get("/sessions", headers=AUTH_HEADERS)
+        session = r.json()[0]
+        assert "id" in session
+        assert "name" in session
+        assert "date" in session
+        assert "created_at" in session
+
+    def test_requires_auth(self, client):
+        """Test GET /sessions requires API key."""
+        r = client.get("/sessions")
+        assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# POST /vocabulary with session_name
+# ---------------------------------------------------------------------------
+
+
+class TestAddVocabularyWithSession:
+    def test_session_name_accepted(self, client):
+        """Test POST /vocabulary accepts optional session_name."""
+        r = client.post(
+            "/vocabulary",
+            json={"word": "hola", "definition": "hello", "session_name": "Spanish 1"},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["session_name"] == "Spanish 1"
+        assert isinstance(body["session_id"], int)
+
+    def test_no_session_name_defaults_to_misc(self, client):
+        """Test POST /vocabulary without session_name assigns to misc."""
+        r = client.post(
+            "/vocabulary", json={"word": "ciao", "definition": "hi"}, headers=AUTH_HEADERS
+        )
+        assert r.status_code == 201
+        assert r.json()["session_name"] == "misc"
+
+
+# ---------------------------------------------------------------------------
+# GET /vocabulary?session_id=
+# ---------------------------------------------------------------------------
+
+
+class TestListVocabularySessionFilter:
+    def test_session_id_filters_words(self, client):
+        """Test GET /vocabulary?session_id= returns only words in that session."""
+        client.post(
+            "/vocabulary",
+            json={"word": "hola", "definition": "hello", "session_name": "Spanish 1"},
+            headers=AUTH_HEADERS,
+        )
+        client.post(
+            "/vocabulary",
+            json={"word": "bonjour", "definition": "hello", "session_name": "French 1"},
+            headers=AUTH_HEADERS,
+        )
+        sessions_r = client.get("/sessions", headers=AUTH_HEADERS)
+        spanish = next(s for s in sessions_r.json() if s["name"] == "Spanish 1")
+
+        r = client.get(f"/vocabulary?session_id={spanish['id']}", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        words = r.json()["words"]
+        assert len(words) == 1
+        assert words[0]["word"] == "hola"
+
+
+# ---------------------------------------------------------------------------
+# GET /vocabulary/due?session_id=
+# ---------------------------------------------------------------------------
+
+
+class TestDueVocabularySessionFilter:
+    def test_session_id_filters_due_words(self, client):
+        """Test GET /vocabulary/due?session_id= returns only due words in that session."""
+        client.post(
+            "/vocabulary",
+            json={"word": "hola", "definition": "hello", "session_name": "Spanish 1"},
+            headers=AUTH_HEADERS,
+        )
+        client.post(
+            "/vocabulary",
+            json={"word": "bonjour", "definition": "hello", "session_name": "French 1"},
+            headers=AUTH_HEADERS,
+        )
+        sessions_r = client.get("/sessions", headers=AUTH_HEADERS)
+        spanish = next(s for s in sessions_r.json() if s["name"] == "Spanish 1")
+
+        r = client.get(f"/vocabulary/due?session_id={spanish['id']}", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        words = r.json()
+        assert len(words) == 1
+        assert words[0]["word"] == "hola"
+        assert words[0]["session_name"] == "Spanish 1"

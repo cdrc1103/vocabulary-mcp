@@ -1,7 +1,8 @@
 """FastAPI application for vocabulary study API.
 
 Provides RESTful endpoints for managing vocabulary words with spaced repetition
-scheduling (SM-2 algorithm). Includes authentication, CORS support, and health checks.
+scheduling (SM-2 algorithm) and session-based grouping. Includes authentication,
+CORS support, and health checks.
 """
 
 from contextlib import asynccontextmanager
@@ -10,6 +11,7 @@ from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
 from database import (
     delete_word,
     get_due_words,
+    get_sessions,
     get_words,
     init_db,
     insert_word,
@@ -23,6 +25,7 @@ from models import (
     BulkVocabularyResponse,
     LoginRequest,
     ReviewRequest,
+    SessionResponse,
     VocabularyCreate,
     VocabularyListResponse,
     VocabularyResponse,
@@ -88,21 +91,32 @@ def login(payload: LoginRequest):
     return {"token": create_token(), "token_type": "bearer"}
 
 
+@app.get("/sessions", response_model=list[SessionResponse])
+def list_sessions():
+    """List all learning sessions ordered by date descending.
+
+    Returns:
+        List of SessionResponse objects.
+    """
+    return get_sessions()
+
+
 @app.post("/vocabulary", response_model=VocabularyResponse, status_code=201)
 def add_vocabulary(payload: VocabularyCreate):
     """Create and store a new vocabulary word.
 
     Args:
-        payload: VocabularyCreate with word, definition, example, language.
+        payload: VocabularyCreate with word, definition, example, language, session_name.
 
     Returns:
-        VocabularyResponse with id, timestamps, and SM-2 state.
+        VocabularyResponse with id, timestamps, SM-2 state, and session info.
     """
     word = insert_word(
         word=payload.word,
         definition=payload.definition,
         example=payload.example,
         language=payload.language,
+        session_name=payload.session_name,
     )
     return word
 
@@ -112,10 +126,10 @@ def bulk_add_vocabulary(payload: BulkVocabularyCreate):
     """Create and store multiple vocabulary words in a single request.
 
     Args:
-        payload: BulkVocabularyCreate with 1-50 words.
+        payload: BulkVocabularyCreate with 1-50 VocabularyCreate words.
 
     Returns:
-        BulkVocabularyResponse with created_count and words list.
+        BulkVocabularyResponse with inserted list and skipped_count.
     """
     result = insert_words_bulk([w.model_dump() for w in payload.words])
     return result
@@ -126,32 +140,38 @@ def list_vocabulary(
     language: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
+    session_id: int | None = Query(None),
 ):
-    """List vocabulary words with optional language filter and pagination.
+    """List vocabulary words with optional language/session filters and pagination.
 
     Args:
         language: Optional filter by language code.
         limit: Number of results per page (1-1000, default 100).
         offset: Number of results to skip (default 0).
+        session_id: Optional filter by session ID.
 
     Returns:
         VocabularyListResponse with total count and paginated words.
     """
-    return get_words(language=language, limit=limit, offset=offset)
+    return get_words(language=language, limit=limit, offset=offset, session_id=session_id)
 
 
 @app.get("/vocabulary/due", response_model=list[VocabularyResponse])
-def due_vocabulary(created_after: str | None = Query(None)):
-    """Get words due for review (next_review <= now), optionally filtered by creation date.
+def due_vocabulary(
+    created_after: str | None = Query(None),
+    session_id: int | None = Query(None),
+):
+    """Get words due for review (next_review <= now), optionally filtered.
 
     Args:
-        created_after: Optional ISO date string (YYYY-MM-DD). When provided,
-            only words created on or after this date are returned.
+        created_after: Optional ISO date string (YYYY-MM-DD). Filters to words
+            created on or after this date.
+        session_id: Optional session ID filter. Stacks AND with created_after.
 
     Returns:
         List of VocabularyResponse objects ready for study.
     """
-    return get_due_words(created_after=created_after)
+    return get_due_words(created_after=created_after, session_id=session_id)
 
 
 @app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)
