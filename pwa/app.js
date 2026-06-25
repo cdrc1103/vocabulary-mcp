@@ -297,10 +297,16 @@ flashcard.addEventListener("click", flipCard);
 flashcard.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flipCard(); }
 });
+document.addEventListener("keydown", (e) => {
+  if (e.key === " " && document.activeElement !== flashcard && !views.study.classList.contains("hidden")) {
+    e.preventDefault();
+    flipCard();
+  }
+});
 
 function flipCard() {
-  flashcard.classList.add("flipped");
-  studyEl.ratings.classList.remove("hidden");
+  const isFlipped = flashcard.classList.toggle("flipped");
+  studyEl.ratings.classList.toggle("hidden", !isFlipped);
 }
 
 // Rating buttons
