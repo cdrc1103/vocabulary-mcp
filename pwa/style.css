@@ -350,3 +350,140 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
 .session-btn:not(.active):hover {
   background: rgba(30, 144, 255, 0.12);
 }
+
+/* ── Edit card bottom sheet ─────────────────────────────────────────────── */
+#edit-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  z-index: 150;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+#edit-sheet-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#edit-sheet {
+  background: white;
+  border-radius: 1rem 1rem 0 0;
+  padding: 1rem 1.25rem;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 640px;
+  max-height: 100%;
+  overflow-y: auto;
+  margin: 0 auto;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#edit-sheet-backdrop.open #edit-sheet {
+  transform: translateY(0);
+}
+
+.edit-sheet-handle {
+  width: 2.5rem;
+  height: 4px;
+  background: #d1d5db;
+  border-radius: 2px;
+  margin: 0 auto 1rem;
+}
+
+#edit-sheet h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0D1B2A;
+  margin-bottom: 1rem;
+}
+
+.edit-sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.875rem;
+}
+
+.edit-sheet-field label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+
+.edit-sheet-field input,
+.edit-sheet-field textarea {
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.875rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #0D1B2A;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  background: #F0F8FF;
+}
+
+.edit-sheet-field input:focus,
+.edit-sheet-field textarea:focus {
+  border-color: #1E90FF;
+  background: white;
+}
+
+.edit-sheet-field textarea { min-height: 3.5rem; }
+
+.edit-error {
+  color: #b91c1c;
+  font-size: 0.875rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.edit-sheet-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  position: sticky;
+  bottom: 0;
+  background: white;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.edit-sheet-actions button { flex: 1; }
+
+#edit-cancel {
+  background: #e5e7eb;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#edit-cancel:hover { background: #d1d5db; }
+
+.btn-edit-card {
+  display: block;
+  width: 100%;
+  margin-top: 0.875rem;
+  background: none;
+  border: 1.5px solid #B3D9FF;
+  border-radius: 0.75rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1565C0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-edit-card:hover { background: rgba(30, 144, 255, 0.08); }
