@@ -376,6 +376,8 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
   width: 100%;
   max-width: 640px;
+  max-height: 100%;
+  overflow-y: auto;
   margin: 0 auto;
   transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
