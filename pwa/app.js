@@ -550,3 +550,85 @@ if (getToken()) {
 } else {
   showLogin();
 }
+
+// ── Edit card sheet ───────────────────────────────────────────────────────────
+const editBackdrop = document.getElementById("edit-sheet-backdrop");
+const editWordInput = document.getElementById("edit-word");
+const editDefInput = document.getElementById("edit-definition");
+const editExInput = document.getElementById("edit-example");
+const editError = document.getElementById("edit-error");
+const editSaveBtn = document.getElementById("edit-save");
+
+function openEditSheet() {
+  const card = dueCards[currentCardIndex];
+  editWordInput.value = card.word || "";
+  editDefInput.value = card.definition || "";
+  editExInput.value = card.example || "";
+  editError.classList.add("hidden");
+  editBackdrop.setAttribute("aria-hidden", "false");
+  editBackdrop.classList.add("open");
+  editWordInput.focus();
+}
+
+function closeEditSheet() {
+  editBackdrop.classList.remove("open");
+  editBackdrop.setAttribute("aria-hidden", "true");
+}
+
+async function saveEdit() {
+  const card = dueCards[currentCardIndex];
+  const word = editWordInput.value.trim();
+  const definition = editDefInput.value.trim();
+  const example = editExInput.value.trim() || null;
+
+  if (!word || !definition) {
+    editError.textContent = "Word and definition are required.";
+    editError.classList.remove("hidden");
+    return;
+  }
+
+  editSaveBtn.disabled = true;
+  editSaveBtn.textContent = "Saving…";
+  editError.classList.add("hidden");
+
+  try {
+    const res = await apiFetch(`/vocabulary/${card.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ word, definition, example }),
+    });
+
+    if (res.ok) {
+      const updated = await res.json();
+      Object.assign(dueCards[currentCardIndex], updated);
+      // Refresh displayed text in-place — card stays on back face, ratings stay visible
+      if (reverseMode) {
+        studyEl.word.textContent = updated.definition || "";
+        studyEl.definition.textContent = updated.word || "";
+      } else {
+        studyEl.word.textContent = updated.word || "";
+        studyEl.definition.textContent = updated.definition || "";
+      }
+      studyEl.example.textContent = updated.example || "";
+      closeEditSheet();
+    } else if (res.status === 409) {
+      editError.textContent = "A word with this name already exists.";
+      editError.classList.remove("hidden");
+    } else {
+      editError.textContent = "Failed to save. Try again.";
+      editError.classList.remove("hidden");
+    }
+  } catch {
+    editError.textContent = "Failed to save. Try again.";
+    editError.classList.remove("hidden");
+  } finally {
+    editSaveBtn.disabled = false;
+    editSaveBtn.textContent = "Save";
+  }
+}
+
+document.getElementById("btn-edit-card").addEventListener("click", openEditSheet);
+document.getElementById("edit-cancel").addEventListener("click", closeEditSheet);
+editSaveBtn.addEventListener("click", saveEdit);
+editBackdrop.addEventListener("click", (e) => {
+  if (e.target === editBackdrop) closeEditSheet();
+});
