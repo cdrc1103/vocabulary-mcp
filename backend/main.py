@@ -5,6 +5,7 @@ scheduling (SM-2 algorithm) and session-based grouping. Includes authentication,
 CORS support, and health checks.
 """
 
+import sqlite3
 from contextlib import asynccontextmanager
 
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
@@ -17,6 +18,7 @@ from database import (
     insert_word,
     insert_words_bulk,
     review_word,
+    update_word,
 )
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +31,7 @@ from models import (
     VocabularyCreate,
     VocabularyListResponse,
     VocabularyResponse,
+    VocabularyUpdate,
 )
 
 
@@ -189,6 +192,38 @@ def submit_review(word_id: int, payload: ReviewRequest):
         HTTPException: 404 if word_id not found.
     """
     result = review_word(word_id=word_id, quality=payload.quality)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Word not found")
+    return result
+
+
+@app.patch("/vocabulary/{word_id}", response_model=VocabularyResponse)
+def update_vocabulary_content(word_id: int, payload: VocabularyUpdate):
+    """Update the content of a vocabulary word without changing SM-2 state.
+
+    Args:
+        word_id: ID of the word to update.
+        payload: VocabularyUpdate with word, definition, and optional example.
+
+    Returns:
+        Updated VocabularyResponse.
+
+    Raises:
+        HTTPException: 404 if word_id not found.
+        HTTPException: 409 if the new word+language combination already exists.
+    """
+    try:
+        result = update_word(
+            word_id=word_id,
+            word=payload.word,
+            definition=payload.definition,
+            example=payload.example,
+        )
+    except sqlite3.IntegrityError as err:
+        raise HTTPException(
+            status_code=409,
+            detail="A word with this name already exists in the same language",
+        ) from err
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")
     return result

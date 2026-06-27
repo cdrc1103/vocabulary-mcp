@@ -529,3 +529,98 @@ class TestDueVocabularySessionFilter:
         assert len(words) == 1
         assert words[0]["word"] == "hola"
         assert words[0]["session_name"] == "Spanish 1"
+
+
+# ---------------------------------------------------------------------------
+# PATCH /vocabulary/{id}  (content update)
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateVocabulary:
+    """Tests for PATCH /vocabulary/{id} — content-only update endpoint."""
+
+    def _add_word(self, client, word="bonjour", definition="hello", language="French"):
+        """Helper to insert a vocabulary word and return its id."""
+        r = client.post(
+            "/vocabulary",
+            json={"word": word, "definition": definition, "language": language},
+            headers=AUTH_HEADERS,
+        )
+        return r.json()["id"]
+
+    def test_update_content_returns_200_with_new_values(self, client):
+        """Test PATCH /vocabulary/{id} updates word, definition, example and returns 200."""
+        wid = self._add_word(client)
+        r = client.patch(
+            f"/vocabulary/{wid}",
+            json={"word": "salut", "definition": "hi there", "example": "Salut!"},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["word"] == "salut"
+        assert body["definition"] == "hi there"
+        assert body["example"] == "Salut!"
+
+    def test_update_preserves_sm2_state(self, client):
+        """Test PATCH /vocabulary/{id} does not change SM-2 scheduling fields."""
+        wid = self._add_word(client)
+        client.patch(f"/vocabulary/{wid}/review", json={"quality": 5}, headers=AUTH_HEADERS)
+        before = client.get("/vocabulary", headers=AUTH_HEADERS).json()["words"][0]
+
+        r = client.patch(
+            f"/vocabulary/{wid}",
+            json={"word": "salut", "definition": "hi", "example": None},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 200
+        updated = r.json()
+        assert updated["interval"] == before["interval"]
+        assert updated["ease_factor"] == before["ease_factor"]
+        assert updated["repetitions"] == before["repetitions"]
+        assert updated["next_review"] == before["next_review"]
+
+    def test_update_not_found_returns_404(self, client):
+        """Test PATCH /vocabulary/{id} with unknown id returns 404."""
+        r = client.patch(
+            "/vocabulary/9999",
+            json={"word": "x", "definition": "y", "example": None},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 404
+
+    def test_update_duplicate_word_language_returns_409(self, client):
+        """Test PATCH that creates a word+language collision with existing entry returns 409."""
+        self._add_word(client, word="bonjour", language="French")
+        wid2 = self._add_word(client, word="merci", language="French")
+        r = client.patch(
+            f"/vocabulary/{wid2}",
+            json={"word": "bonjour", "definition": "thanks", "example": None},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 409
+
+    def test_update_clears_example_when_none(self, client):
+        """Test PATCH with example=None clears a previously set example."""
+        wid = self._add_word(client)
+        client.patch(
+            f"/vocabulary/{wid}",
+            json={"word": "bonjour", "definition": "hello", "example": "Bonjour!"},
+            headers=AUTH_HEADERS,
+        )
+        r = client.patch(
+            f"/vocabulary/{wid}",
+            json={"word": "bonjour", "definition": "hello", "example": None},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 200
+        assert r.json()["example"] is None
+
+    def test_update_requires_auth(self, client):
+        """Test PATCH /vocabulary/{id} requires API key or JWT."""
+        wid = self._add_word(client)
+        r = client.patch(
+            f"/vocabulary/{wid}",
+            json={"word": "x", "definition": "y", "example": None},
+        )
+        assert r.status_code == 401

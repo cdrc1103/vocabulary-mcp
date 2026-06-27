@@ -378,6 +378,46 @@ def review_word(word_id: int, quality: int) -> dict | None:
     }
 
 
+def update_word(
+    word_id: int,
+    word: str,
+    definition: str,
+    example: str | None,
+) -> dict | None:
+    """Update the content fields of a vocabulary word.
+
+    Only touches word, definition, and example — SM-2 state is left intact.
+    Raises sqlite3.IntegrityError if the new word+language combination
+    already exists (unique index violation).
+
+    Args:
+        word_id: ID of the word to update.
+        word: New word text.
+        definition: New definition text.
+        example: New example sentence, or None to clear.
+
+    Returns:
+        Updated vocabulary dict with session_name joined, or None if word_id not found.
+    """
+    with get_connection() as conn:
+        result = conn.execute(
+            "UPDATE vocabulary SET word = ?, definition = ?, example = ? WHERE id = ?",
+            (word, definition, example, word_id),
+        )
+        if result.rowcount == 0:
+            return None
+        row = conn.execute(
+            """
+            SELECT v.*, s.name AS session_name
+            FROM vocabulary v
+            LEFT JOIN sessions s ON v.session_id = s.id
+            WHERE v.id = ?
+            """,
+            (word_id,),
+        ).fetchone()
+    return dict(row)
+
+
 def delete_word(word_id: int) -> bool:
     """Delete a vocabulary word by ID.
 

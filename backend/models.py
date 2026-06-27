@@ -99,6 +99,23 @@ class ReviewRequest(BaseModel):
     quality: int = Field(..., ge=0, le=5)  # SM-2 standard
 
 
+class VocabularyUpdate(BaseModel):
+    """Request model for updating vocabulary word content.
+
+    All fields must be provided; example may be None to clear it.
+    SM-2 scheduling fields are not affected by this model.
+
+    Attributes:
+        word: New word text (required).
+        definition: New definition text (required).
+        example: New example sentence, or None to clear the existing one.
+    """
+
+    word: str
+    definition: str
+    example: str | None = None
+
+
 class LoginRequest(BaseModel):
     """Request model for password authentication.
 
