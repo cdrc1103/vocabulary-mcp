@@ -559,6 +559,12 @@ const editExInput = document.getElementById("edit-example");
 const editError = document.getElementById("edit-error");
 const editSaveBtn = document.getElementById("edit-save");
 
+function onViewportResize() {
+  const vv = window.visualViewport;
+  editBackdrop.style.height = `${vv.height}px`;
+  editBackdrop.style.top = `${vv.offsetTop}px`;
+}
+
 function openEditSheet() {
   const card = dueCards[currentCardIndex];
   editWordInput.value = card.word || "";
@@ -567,10 +573,14 @@ function openEditSheet() {
   editError.classList.add("hidden");
   editBackdrop.setAttribute("aria-hidden", "false");
   editBackdrop.classList.add("open");
+  window.visualViewport?.addEventListener("resize", onViewportResize);
   editWordInput.focus();
 }
 
 function closeEditSheet() {
+  window.visualViewport?.removeEventListener("resize", onViewportResize);
+  editBackdrop.style.height = "";
+  editBackdrop.style.top = "";
   editBackdrop.classList.remove("open");
   editBackdrop.setAttribute("aria-hidden", "true");
   document.getElementById("btn-edit-card").focus();
