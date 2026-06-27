@@ -449,6 +449,10 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
   display: flex;
   gap: 0.75rem;
   margin-top: 1rem;
+  position: sticky;
+  bottom: 0;
+  background: white;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
 .edit-sheet-actions button { flex: 1; }
