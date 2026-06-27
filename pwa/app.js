@@ -293,7 +293,10 @@ function showCard() {
 
 // Flip card on tap / keyboard
 const flashcard = document.getElementById("flashcard");
-flashcard.addEventListener("click", flipCard);
+flashcard.addEventListener("click", () => {
+  if (window.getSelection().toString()) return;
+  flipCard();
+});
 flashcard.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flipCard(); }
 });
