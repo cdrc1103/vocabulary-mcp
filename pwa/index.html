@@ -125,6 +125,7 @@
             <button class="btn-rating btn-rating-good"  data-quality="4" aria-label="Good">😊 Good</button>
             <button class="btn-rating btn-rating-easy"  data-quality="5" aria-label="Easy">⭐ Easy</button>
           </div>
+          <button class="btn-edit-card" id="btn-edit-card" aria-label="Edit this card">✏️ Edit card</button>
         </div>
       </div>
 
@@ -146,6 +147,31 @@
 
   <!-- Offline banner -->
   <div id="offline-banner" class="offline-banner hidden">You're offline</div>
+
+  <!-- ── Edit card bottom sheet ────────────────────────────────────────────── -->
+  <div id="edit-sheet-backdrop" aria-hidden="true">
+    <div id="edit-sheet" role="dialog" aria-modal="true" aria-label="Edit card">
+      <div class="edit-sheet-handle" aria-hidden="true"></div>
+      <h3>Edit card</h3>
+      <div class="edit-sheet-field">
+        <label for="edit-word">Word</label>
+        <input type="text" id="edit-word" autocomplete="off" />
+      </div>
+      <div class="edit-sheet-field">
+        <label for="edit-definition">Definition</label>
+        <textarea id="edit-definition" rows="2"></textarea>
+      </div>
+      <div class="edit-sheet-field">
+        <label for="edit-example">Example</label>
+        <textarea id="edit-example" rows="2"></textarea>
+      </div>
+      <p id="edit-error" class="edit-error hidden"></p>
+      <div class="edit-sheet-actions">
+        <button id="edit-cancel">Cancel</button>
+        <button id="edit-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
