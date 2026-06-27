@@ -573,6 +573,7 @@ function openEditSheet() {
 function closeEditSheet() {
   editBackdrop.classList.remove("open");
   editBackdrop.setAttribute("aria-hidden", "true");
+  document.getElementById("btn-edit-card").focus();
 }
 
 async function saveEdit() {
@@ -631,4 +632,7 @@ document.getElementById("edit-cancel").addEventListener("click", closeEditSheet)
 editSaveBtn.addEventListener("click", saveEdit);
 editBackdrop.addEventListener("click", (e) => {
   if (e.target === editBackdrop) closeEditSheet();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && editBackdrop.classList.contains("open")) closeEditSheet();
 });
