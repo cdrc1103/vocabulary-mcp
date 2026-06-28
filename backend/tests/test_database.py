@@ -377,3 +377,49 @@ class TestSessions:
         inserted_by_word = {w["word"]: w for w in result["inserted"]}
         assert inserted_by_word["x"]["session_name"] == "Sess A"
         assert inserted_by_word["y"]["session_name"] == "Sess B"
+
+
+class TestDeleteWordsBySession:
+    def test_returns_word_count_when_session_has_words(self):
+        """Test delete_words_by_session returns count of deleted words."""
+        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
+        db.insert_word("adios", "goodbye", None, "es", session_name="Spanish 1")
+        session = db.get_or_create_session("Spanish 1")
+        result = db.delete_words_by_session(session["id"])
+        assert result == 2
+
+    def test_returns_zero_when_session_has_no_words(self):
+        """Test delete_words_by_session returns 0 when session exists with no words."""
+        session = db.get_or_create_session("Empty Session")
+        result = db.delete_words_by_session(session["id"])
+        assert result == 0
+
+    def test_returns_none_when_session_not_found(self):
+        """Test delete_words_by_session returns None for unknown session_id."""
+        result = db.delete_words_by_session(9999)
+        assert result is None
+
+    def test_words_are_removed_after_delete(self):
+        """Test vocabulary words no longer exist after session delete."""
+        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
+        session = db.get_or_create_session("Spanish 1")
+        db.delete_words_by_session(session["id"])
+        words = db.get_words(language=None, limit=100, offset=0)["words"]
+        assert not any(w["word"] == "hola" for w in words)
+
+    def test_session_record_is_removed_after_delete(self):
+        """Test session record no longer exists after delete."""
+        session = db.get_or_create_session("To Delete")
+        db.delete_words_by_session(session["id"])
+        sessions = db.get_sessions()
+        assert not any(s["name"] == "To Delete" for s in sessions)
+
+    def test_only_deletes_words_in_target_session(self):
+        """Test words in other sessions are unaffected by delete."""
+        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
+        db.insert_word("bonjour", "hello", None, "fr", session_name="French 1")
+        spanish = db.get_or_create_session("Spanish 1")
+        db.delete_words_by_session(spanish["id"])
+        words = db.get_words(language=None, limit=100, offset=0)["words"]
+        assert any(w["word"] == "bonjour" for w in words)
+        assert not any(w["word"] == "hola" for w in words)

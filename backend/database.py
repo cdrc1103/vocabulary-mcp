@@ -430,3 +430,26 @@ def delete_word(word_id: int) -> bool:
     with get_connection() as conn:
         result = conn.execute("DELETE FROM vocabulary WHERE id = ?", (word_id,))
         return result.rowcount > 0
+
+
+def delete_words_by_session(session_id: int) -> int | None:
+    """Delete all vocabulary words for a session and the session record itself.
+
+    Checks session existence first to distinguish a missing session (None)
+    from a session that exists but has no words (0). Both deletes run in
+    a single transaction.
+
+    Args:
+        session_id: ID of the session to delete.
+
+    Returns:
+        Count of deleted vocabulary words, or None if session_id not found.
+    """
+    with get_connection() as conn:
+        row = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if row is None:
+            return None
+        result = conn.execute("DELETE FROM vocabulary WHERE session_id = ?", (session_id,))
+        deleted_count = result.rowcount
+        conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+    return deleted_count

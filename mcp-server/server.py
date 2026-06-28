@@ -180,6 +180,51 @@ async def add_vocabulary(
         return f"Failed to save word: {e}"
 
 
+@mcp.tool(
+    description=(
+        "Delete an entire vocabulary session and all its words. "
+        "Use this when the user wants to remove all words from a named session "
+        "and clear the session itself. The session is identified by its exact name."
+    )
+)
+async def delete_session(session_name: str) -> str:
+    """Delete a vocabulary session and all its words via MCP tool.
+
+    First fetches all sessions to resolve session_name to a session_id,
+    then calls DELETE /vocabulary/session/{session_id} to remove all words
+    and the session record in one backend operation.
+
+    Args:
+        session_name: Exact name of the session to delete.
+
+    Returns:
+        Success message with deleted word count, or an error/not-found message.
+    """
+    try:
+        sessions_response = await _http_client.get(
+            f"{VOCAB_API_URL}/sessions",
+            headers={"X-API-Key": VOCAB_API_KEY},
+            timeout=10.0,
+        )
+        sessions_response.raise_for_status()
+        sessions = sessions_response.json()
+        session = next((s for s in sessions if s["name"] == session_name), None)
+        if session is None:
+            return f"Session '{session_name}' not found."
+        delete_response = await _http_client.delete(
+            f"{VOCAB_API_URL}/vocabulary/session/{session['id']}",
+            headers={"X-API-Key": VOCAB_API_KEY},
+            timeout=10.0,
+        )
+        delete_response.raise_for_status()
+        deleted_words = delete_response.json()["deleted_words"]
+        return f"Deleted session '{session_name}' and {deleted_words} words."
+    except httpx.HTTPStatusError as e:
+        return f"Failed to delete session: HTTP {e.response.status_code} — {e.response.text}"
+    except Exception as e:
+        return f"Failed to delete session: {e}"
+
+
 # ── Custom routes (unprotected) ───────────────────────────────────────────────
 
 
