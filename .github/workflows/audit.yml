@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
 
       - name: uv audit (${{ matrix.package }})
         run: cd ${{ matrix.package }} && uv audit --frozen --preview-features audit-command
