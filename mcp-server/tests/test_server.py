@@ -235,3 +235,85 @@ class TestBulkAddVocabularySession:
         _, kwargs = mock_post.call_args
         sent_words = kwargs["json"]["words"]
         assert sent_words[0]["session_name"] == "new-session"
+
+
+# ---------------------------------------------------------------------------
+# delete_session helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_sessions_response(sessions: list[dict]) -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        json=sessions,
+        request=httpx.Request("GET", "http://test-backend/sessions"),
+    )
+
+
+def _make_delete_session_response(status_code: int, json_body: dict) -> httpx.Response:
+    return httpx.Response(
+        status_code=status_code,
+        json=json_body,
+        request=httpx.Request("DELETE", "http://test-backend/vocabulary/session/1"),
+    )
+
+
+_SESSIONS = [
+    {"id": 1, "name": "Spanish 1", "date": "2026-06-28", "created_at": "2026-06-28 00:00:00"}
+]
+
+
+class TestDeleteSession:
+    def test_delete_session_tool_is_registered(self):
+        """Test that delete_session tool is registered with MCP server."""
+        tools = asyncio.run(srv.mcp.list_tools())
+        assert any(t.name == "delete_session" for t in tools)
+
+    def test_returns_success_message_with_session_name_and_count(self):
+        """Test delete_session returns message containing session name and deleted word count."""
+        sessions_resp = _make_sessions_response(_SESSIONS)
+        delete_resp = _make_delete_session_response(200, {"deleted_words": 3})
+        with (
+            patch.object(srv._http_client, "get", new=AsyncMock(return_value=sessions_resp)),
+            patch.object(srv._http_client, "delete", new=AsyncMock(return_value=delete_resp)),
+        ):
+            result = asyncio.run(srv.delete_session("Spanish 1"))
+        assert "Spanish 1" in result
+        assert "3" in result
+        assert "Deleted" in result
+
+    def test_returns_not_found_when_session_name_absent(self):
+        """Test delete_session returns not-found message when name not in GET /sessions."""
+        sessions_resp = _make_sessions_response(_SESSIONS)
+        with patch.object(srv._http_client, "get", new=AsyncMock(return_value=sessions_resp)):
+            result = asyncio.run(srv.delete_session("French 1"))
+        assert "not found" in result.lower()
+        assert "French 1" in result
+
+    def test_http_error_on_delete_returns_error_message(self):
+        """Test delete_session returns error message on HTTP error from delete endpoint."""
+        sessions_resp = _make_sessions_response(_SESSIONS)
+        error_resp = _make_delete_session_response(500, {"detail": "server error"})
+        with (
+            patch.object(srv._http_client, "get", new=AsyncMock(return_value=sessions_resp)),
+            patch.object(
+                srv._http_client,
+                "delete",
+                new=AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "err", request=MagicMock(), response=error_resp
+                    )
+                ),
+            ),
+        ):
+            result = asyncio.run(srv.delete_session("Spanish 1"))
+        assert "Failed" in result
+        assert "500" in result
+
+    def test_network_error_returns_error_message(self):
+        """Test delete_session returns error message on network failure during GET /sessions."""
+        with patch.object(
+            srv._http_client, "get", new=AsyncMock(side_effect=Exception("connection refused"))
+        ):
+            result = asyncio.run(srv.delete_session("Spanish 1"))
+        assert "Failed" in result
