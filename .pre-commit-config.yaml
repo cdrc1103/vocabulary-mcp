@@ -1,18 +1,45 @@
+exclude: (^|/)\.venv/
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.10
+    rev: v0.15.20
     hooks:
       - id: ruff
         args: [--fix]
-        exclude: ^(backend|mcp-server)/\.venv/
       - id: ruff-format
-        exclude: ^(backend|mcp-server)/\.venv/
+
+  - repo: local
+    hooks:
+      - id: uv-audit-backend
+        name: uv audit (backend)
+        entry: bash -c 'cd backend && uv audit --frozen --preview-features audit-command'
+        language: system
+        pass_filenames: false
+        files: ^backend/(pyproject\.toml|uv\.lock)$
+      - id: uv-audit-mcp-server
+        name: uv audit (mcp-server)
+        entry: bash -c 'cd mcp-server && uv audit --frozen --preview-features audit-command'
+        language: system
+        pass_filenames: false
+        files: ^mcp-server/(pyproject\.toml|uv\.lock)$
+
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v0.6.1
+    hooks:
+      - id: biome-check
+        additional_dependencies: ["@biomejs/biome@2.5.1"]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      - id: check-merge-conflict
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
-        exclude: ^(backend|mcp-server)/uv\.lock$
+        exclude: uv\.lock$
