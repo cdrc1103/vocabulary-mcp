@@ -85,8 +85,8 @@ loginForm.addEventListener("submit", async (e) => {
 
 // ── View switching ────────────────────────────────────────────────────────────
 const views = {
-  home:   document.getElementById("view-home"),
-  study:  document.getElementById("view-study"),
+  home: document.getElementById("view-home"),
+  study: document.getElementById("view-study"),
   browse: document.getElementById("view-browse"),
 };
 
@@ -133,12 +133,14 @@ async function loadHome() {
   document.getElementById("custom-date").max = new Date().toISOString().slice(0, 10);
   await Promise.all([
     loadSessions(),
-    apiFetch("/vocabulary?limit=1").then(async (res) => {
-      if (res.ok) {
-        const data = await res.json();
-        document.getElementById("total-words").textContent = data.total;
-      }
-    }).catch(() => {}),
+    apiFetch("/vocabulary?limit=1")
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById("total-words").textContent = data.total;
+        }
+      })
+      .catch(() => {}),
     refreshDueCount(),
   ]);
 }
@@ -202,19 +204,19 @@ let reviewedCount = 0;
 
 // Cache all study-panel elements to avoid repeated getElementById calls
 const studyEl = {
-  loading:    document.getElementById("study-loading"),
-  empty:      document.getElementById("study-empty"),
-  done:       document.getElementById("study-done"),
-  area:       document.getElementById("flashcard-area"),
-  progress:   document.getElementById("study-progress"),
-  doneCount:  document.getElementById("study-done-count"),
-  main:       document.getElementById("study-main"),
-  lang:       document.getElementById("card-lang"),
-  word:       document.getElementById("card-word"),
+  loading: document.getElementById("study-loading"),
+  empty: document.getElementById("study-empty"),
+  done: document.getElementById("study-done"),
+  area: document.getElementById("flashcard-area"),
+  progress: document.getElementById("study-progress"),
+  doneCount: document.getElementById("study-done-count"),
+  main: document.getElementById("study-main"),
+  lang: document.getElementById("card-lang"),
+  word: document.getElementById("card-word"),
   definition: document.getElementById("card-definition"),
-  example:    document.getElementById("card-example"),
-  ratings:    document.getElementById("rating-buttons"),
-  hint:       document.querySelector(".card-hint"),
+  example: document.getElementById("card-example"),
+  ratings: document.getElementById("rating-buttons"),
+  hint: document.querySelector(".card-hint"),
 };
 
 // reverse param allows callers to override the toggle state (e.g. study-again preserves mode)
@@ -242,7 +244,7 @@ async function loadStudy(reverse = false) {
     showErrorMsg(
       studyEl.main,
       "Failed to load words. Please try again.",
-      "You're offline. Please reconnect to study.",
+      "You're offline. Please reconnect to study."
     );
     return;
   }
@@ -284,7 +286,10 @@ function showCard() {
   }
   studyEl.example.textContent = card.example || "";
 
-  flashcard.setAttribute("aria-label", reverseMode ? "Tap to reveal word" : "Tap to reveal definition");
+  flashcard.setAttribute(
+    "aria-label",
+    reverseMode ? "Tap to reveal word" : "Tap to reveal definition"
+  );
   studyEl.hint.textContent = reverseMode ? "tap to reveal word" : "tap to reveal";
 
   studyEl.ratings.classList.add("hidden");
@@ -295,10 +300,17 @@ function showCard() {
 const flashcard = document.getElementById("flashcard");
 flashcard.addEventListener("click", flipCard);
 flashcard.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flipCard(); }
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    flipCard();
+  }
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === " " && document.activeElement !== flashcard && !views.study.classList.contains("hidden")) {
+  if (
+    e.key === " " &&
+    document.activeElement !== flashcard &&
+    !views.study.classList.contains("hidden")
+  ) {
     e.preventDefault();
     flipCard();
   }
@@ -338,8 +350,7 @@ async function submitReview(id, quality) {
 function showStudyDone() {
   studyEl.area.classList.add("hidden");
   studyEl.done.classList.remove("hidden");
-  studyEl.doneCount.textContent =
-    `You reviewed ${reviewedCount} word${reviewedCount !== 1 ? "s" : ""}.`;
+  studyEl.doneCount.textContent = `You reviewed ${reviewedCount} word${reviewedCount !== 1 ? "s" : ""}.`;
   studyEl.progress.textContent = "";
 }
 
