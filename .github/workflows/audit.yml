@@ -1,0 +1,21 @@
+name: Dependency security audit
+
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays 07:00 UTC
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [backend, mcp-server]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: uv audit (${{ matrix.package }})
+        run: cd ${{ matrix.package }} && uv audit --frozen --preview-features audit-command
