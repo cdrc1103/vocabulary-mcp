@@ -18,7 +18,7 @@ idna==3.11
     # via anyio
 pydantic==2.12.5
     # via fastapi
-pydantic-core==2.41.5
+pydantic-core==2.47.0
     # via pydantic
 pyjwt==2.11.0
     # via vocabulary-backend
