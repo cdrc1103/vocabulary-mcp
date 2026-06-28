@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
 from database import (
     delete_word,
+    delete_words_by_session,
     get_due_words,
     get_sessions,
     get_words,
@@ -242,3 +243,22 @@ def remove_vocabulary(word_id: int):
     deleted = delete_word(word_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Word not found")
+
+
+@app.delete("/vocabulary/session/{session_id}")
+def delete_vocabulary_session(session_id: int):
+    """Delete all words in a session and the session record itself.
+
+    Args:
+        session_id: ID of the session to delete.
+
+    Returns:
+        Dictionary with deleted_words count.
+
+    Raises:
+        HTTPException: 404 if session_id not found.
+    """
+    deleted = delete_words_by_session(session_id)
+    if deleted is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"deleted_words": deleted}

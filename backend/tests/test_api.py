@@ -624,3 +624,86 @@ class TestUpdateVocabulary:
             json={"word": "x", "definition": "y", "example": None},
         )
         assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# DELETE /vocabulary/session/{session_id}
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteVocabularySession:
+    """Tests for DELETE /vocabulary/session/{session_id}."""
+
+    def _create_session_with_words(self, client, session_name: str, words: list[dict]) -> int:
+        """Helper: create words under a named session, return session id.
+
+        Args:
+            client: TestClient instance.
+            session_name: Name of the session to create.
+            words: List of word dictionaries with word, definition, etc.
+
+        Returns:
+            The session ID of the created session.
+        """
+        for w in words:
+            client.post(
+                "/vocabulary",
+                json={**w, "session_name": session_name},
+                headers=AUTH_HEADERS,
+            )
+        sessions = client.get("/sessions", headers=AUTH_HEADERS).json()
+        return next(s["id"] for s in sessions if s["name"] == session_name)
+
+    def test_returns_200_with_deleted_word_count(self, client):
+        """Test DELETE returns 200 and correct deleted_words count."""
+        sid = self._create_session_with_words(
+            client,
+            "Spanish 1",
+            [{"word": "hola", "definition": "hi"}, {"word": "adios", "definition": "bye"}],
+        )
+        r = client.delete(f"/vocabulary/session/{sid}", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        assert r.json() == {"deleted_words": 2}
+
+    def test_returns_200_with_zero_when_session_empty(self, client):
+        """Test DELETE returns deleted_words=0 when session has no words."""
+        r = client.post(
+            "/vocabulary",
+            json={"word": "hola", "definition": "hi", "session_name": "Empty Session"},
+            headers=AUTH_HEADERS,
+        )
+        wid = r.json()["id"]
+        client.delete(f"/vocabulary/{wid}", headers=AUTH_HEADERS)
+        sessions = client.get("/sessions", headers=AUTH_HEADERS).json()
+        sid = next(s["id"] for s in sessions if s["name"] == "Empty Session")
+        r = client.delete(f"/vocabulary/session/{sid}", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        assert r.json() == {"deleted_words": 0}
+
+    def test_returns_404_for_unknown_session_id(self, client):
+        """Test DELETE returns 404 for non-existent session_id."""
+        r = client.delete("/vocabulary/session/9999", headers=AUTH_HEADERS)
+        assert r.status_code == 404
+
+    def test_words_absent_from_vocabulary_after_delete(self, client):
+        """Test words no longer appear in GET /vocabulary after session delete."""
+        sid = self._create_session_with_words(
+            client, "Spanish 1", [{"word": "hola", "definition": "hi"}]
+        )
+        client.delete(f"/vocabulary/session/{sid}", headers=AUTH_HEADERS)
+        words = client.get("/vocabulary", headers=AUTH_HEADERS).json()["words"]
+        assert not any(w["word"] == "hola" for w in words)
+
+    def test_session_absent_from_sessions_after_delete(self, client):
+        """Test session no longer appears in GET /sessions after delete."""
+        sid = self._create_session_with_words(
+            client, "Spanish 1", [{"word": "hola", "definition": "hi"}]
+        )
+        client.delete(f"/vocabulary/session/{sid}", headers=AUTH_HEADERS)
+        sessions = client.get("/sessions", headers=AUTH_HEADERS).json()
+        assert not any(s["name"] == "Spanish 1" for s in sessions)
+
+    def test_requires_auth(self, client):
+        """Test DELETE /vocabulary/session/{id} requires authentication."""
+        r = client.delete("/vocabulary/session/1")
+        assert r.status_code == 401
