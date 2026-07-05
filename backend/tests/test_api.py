@@ -717,6 +717,39 @@ class TestDeleteVocabularySession:
 # ---------------------------------------------------------------------------
 
 
+class TestPrimitivesEndpoints:
+    """Tests for GET/POST /primitives endpoints."""
+
+    def test_post_creates_primitive(self, client):
+        """POST /primitives registers a primitive with rank 1."""
+        r = client.post(
+            "/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "sun"}
+        )
+        assert r.status_code == 201
+        assert r.json()["keyword"] == "sun"
+        assert r.json()["rank"] == 1
+
+    def test_post_is_first_write_wins(self, client):
+        """POST /primitives never overwrites an existing keyword."""
+        client.post("/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "sun"})
+        r = client.post(
+            "/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "day"}
+        )
+        assert r.json()["keyword"] == "sun"
+
+    def test_get_lists_primitives(self, client):
+        """GET /primitives returns the registry."""
+        client.post("/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "sun"})
+        r = client.get("/primitives", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        assert [p["component"] for p in r.json()] == ["日"]
+
+
+# ---------------------------------------------------------------------------
+# Heisig Models Validation
+# ---------------------------------------------------------------------------
+
+
 class TestHeisigModels:
     """Tests for Heisig pydantic model validation."""
 

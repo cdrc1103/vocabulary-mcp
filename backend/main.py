@@ -13,6 +13,7 @@ from database import (
     delete_word,
     delete_words_by_session,
     get_due_words,
+    get_primitives,
     get_sessions,
     get_words,
     init_db,
@@ -20,6 +21,7 @@ from database import (
     insert_words_bulk,
     review_word,
     update_word,
+    upsert_primitive,
 )
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +29,8 @@ from models import (
     BulkVocabularyCreate,
     BulkVocabularyResponse,
     LoginRequest,
+    PrimitiveCreate,
+    PrimitiveResponse,
     ReviewRequest,
     SessionResponse,
     VocabularyCreate,
@@ -262,3 +266,26 @@ def delete_vocabulary_session(session_id: int):
     if deleted is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"deleted_words": deleted}
+
+
+@app.get("/primitives", response_model=list[PrimitiveResponse])
+def list_primitives():
+    """List the primitive registry ordered by introduction rank.
+
+    Returns:
+        List of PrimitiveResponse objects.
+    """
+    return get_primitives()
+
+
+@app.post("/primitives", response_model=PrimitiveResponse, status_code=201)
+def create_primitive(payload: PrimitiveCreate):
+    """Register a primitive (first-write-wins; existing keyword is preserved).
+
+    Args:
+        payload: PrimitiveCreate with component, keyword, optional note.
+
+    Returns:
+        The stored PrimitiveResponse.
+    """
+    return upsert_primitive(payload.component, payload.keyword, payload.note)
