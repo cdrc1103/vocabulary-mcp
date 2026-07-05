@@ -215,6 +215,10 @@ const studyEl = {
   word: document.getElementById("card-word"),
   definition: document.getElementById("card-definition"),
   example: document.getElementById("card-example"),
+  heisig: document.getElementById("card-heisig"),
+  pinyin: document.getElementById("card-pinyin"),
+  story: document.getElementById("card-story"),
+  primitives: document.getElementById("card-primitives"),
   ratings: document.getElementById("rating-buttons"),
   hint: document.querySelector(".card-hint"),
 };
@@ -292,8 +296,27 @@ function showCard() {
   );
   studyEl.hint.textContent = reverseMode ? "tap to reveal word" : "tap to reveal";
 
+  renderHeisig(card);
   studyEl.ratings.classList.add("hidden");
   studyEl.area.classList.remove("hidden");
+}
+
+// Populate or hide the Heisig block on the card back based on whether the
+// card carries Heisig data (keyword present). Additive: definition/example
+// above it are untouched.
+function renderHeisig(card) {
+  const isHeisig = Boolean(card.keyword);
+  studyEl.heisig.classList.toggle("hidden", !isHeisig);
+  if (!isHeisig) return;
+
+  const tone = card.tone || 5;
+  studyEl.pinyin.textContent = card.pinyin || "";
+  studyEl.pinyin.className = `card-pinyin tone-${tone}`;
+
+  studyEl.story.textContent = card.story || "";
+
+  const prims = card.primitives || [];
+  studyEl.primitives.textContent = prims.map((p) => `${p.component} = ${p.keyword}`).join(" · ");
 }
 
 // Flip card on tap / keyboard
