@@ -6,6 +6,9 @@ Tests all CRUD endpoints, authentication, pagination, and error handling.
 import time
 
 import jwt
+import models
+import pytest
+from pydantic import ValidationError
 
 from tests.conftest import AUTH_HEADERS, TEST_API_KEY, TEST_PASSWORD
 
@@ -707,3 +710,40 @@ class TestDeleteVocabularySession:
         """Test DELETE /vocabulary/session/{id} requires authentication."""
         r = client.delete("/vocabulary/session/1")
         assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Heisig Models Validation
+# ---------------------------------------------------------------------------
+
+
+class TestHeisigModels:
+    """Tests for Heisig pydantic model validation."""
+
+    def test_hanzi_upsert_valid(self):
+        """A well-formed HanziUpsert validates and keeps its primitives."""
+        m = models.HanziUpsert(
+            word="明",
+            keyword="bright",
+            pinyin="míng",
+            tone=2,
+            story="s",
+            primitives=[{"component": "日", "keyword": "sun", "position": 0}],
+        )
+        assert m.tone == 2
+        assert m.primitives[0].component == "日"
+
+    def test_tone_out_of_range_rejected(self):
+        """tone outside 1..5 fails validation."""
+        with pytest.raises(ValidationError):
+            models.HanziUpsert(word="x", keyword="k", pinyin="p", tone=6, story="s")
+
+    def test_negative_position_rejected(self):
+        """A negative primitive position fails validation."""
+        with pytest.raises(ValidationError):
+            models.PrimitiveRef(component="日", keyword="sun", position=-1)
+
+    def test_bulk_limits_enforced(self):
+        """HanziBulkUpsert rejects an empty card list."""
+        with pytest.raises(ValidationError):
+            models.HanziBulkUpsert(cards=[])
