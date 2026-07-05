@@ -177,6 +177,124 @@ def get_sessions() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _upsert_primitive(
+    conn: sqlite3.Connection, component: str, keyword: str, note: str | None
+) -> int:
+    """Insert or reuse a primitive within an open connection (first-write-wins).
+
+    On first insert, assigns the next rank and stores the keyword. If the
+    component already exists, the keyword is never changed; ``note`` is filled
+    only when the stored note is currently NULL.
+
+    Args:
+        conn: Open SQLite connection.
+        component: The primitive's shape/character (unique key).
+        keyword: The fixed keyword for this component.
+        note: Optional gloss; only applied if no note is stored yet.
+
+    Returns:
+        The primitive's row id.
+    """
+    row = conn.execute(
+        "SELECT id, note FROM primitives WHERE component = ?", (component,)
+    ).fetchone()
+    if row is None:
+        next_rank = conn.execute("SELECT COALESCE(MAX(rank), 0) + 1 FROM primitives").fetchone()[0]
+        cur = conn.execute(
+            "INSERT INTO primitives (component, keyword, note, rank) VALUES (?, ?, ?, ?)",
+            (component, keyword, note, next_rank),
+        )
+        return cur.lastrowid
+    if note is not None and row["note"] is None:
+        conn.execute("UPDATE primitives SET note = ? WHERE id = ?", (note, row["id"]))
+    return row["id"]
+
+
+def upsert_primitive(component: str, keyword: str, note: str | None = None) -> dict:
+    """Insert or reuse a primitive (first-write-wins) and return its row.
+
+    Args:
+        component: The primitive's shape/character (unique key).
+        keyword: The fixed keyword for this component.
+        note: Optional gloss; applied only if no note is stored yet.
+
+    Returns:
+        Dict with id, component, keyword, note, rank.
+    """
+    with get_connection() as conn:
+        prim_id = _upsert_primitive(conn, component, keyword, note)
+        row = conn.execute("SELECT * FROM primitives WHERE id = ?", (prim_id,)).fetchone()
+    return dict(row)
+
+
+def get_primitives() -> list[dict]:
+    """Return all primitives ordered by rank (introduction order).
+
+    Returns:
+        List of dicts with id, component, keyword, note, rank.
+    """
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM primitives ORDER BY rank").fetchall()
+    return [dict(r) for r in rows]
+
+
+def replace_card_primitives(conn: sqlite3.Connection, vocabulary_id: int, refs: list[dict]) -> None:
+    """Rewrite a card's primitive links (upserting each referenced primitive first).
+
+    Existing links for the card are deleted and replaced with the given refs,
+    preserving their order via ``position``.
+
+    Args:
+        conn: Open SQLite connection inside the caller's transaction.
+        vocabulary_id: The card whose links are being replaced.
+        refs: List of dicts with component, keyword, note, position.
+    """
+    conn.execute("DELETE FROM card_primitives WHERE vocabulary_id = ?", (vocabulary_id,))
+    for ref in refs:
+        prim_id = _upsert_primitive(conn, ref["component"], ref["keyword"], ref.get("note"))
+        conn.execute(
+            "INSERT INTO card_primitives (vocabulary_id, primitive_id, position) VALUES (?, ?, ?)",
+            (vocabulary_id, prim_id, ref["position"]),
+        )
+
+
+def _attach_primitives(conn: sqlite3.Connection, cards: list[dict]) -> None:
+    """Attach an ordered ``primitives`` list to each card dict in place.
+
+    Args:
+        conn: Open SQLite connection.
+        cards: List of card dicts each containing an ``id`` key.
+    """
+    if not cards:
+        return
+    ids = [c["id"] for c in cards]
+    placeholders = ",".join("?" * len(ids))
+    rows = conn.execute(
+        f"""
+        SELECT cp.vocabulary_id, p.id, p.component, p.keyword, p.note, p.rank, cp.position
+        FROM card_primitives cp
+        JOIN primitives p ON cp.primitive_id = p.id
+        WHERE cp.vocabulary_id IN ({placeholders})
+        ORDER BY cp.position
+        """,
+        ids,
+    ).fetchall()
+    by_card: dict[int, list[dict]] = {}
+    for r in rows:
+        by_card.setdefault(r["vocabulary_id"], []).append(
+            {
+                "id": r["id"],
+                "component": r["component"],
+                "keyword": r["keyword"],
+                "note": r["note"],
+                "rank": r["rank"],
+                "position": r["position"],
+            }
+        )
+    for c in cards:
+        c["primitives"] = by_card.get(c["id"], [])
+
+
 def apply_sm2(interval: int, ease: float, reps: int, quality: int):
     """Apply SM-2 spaced repetition algorithm to calculate next interval and ease factor.
 

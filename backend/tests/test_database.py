@@ -432,3 +432,39 @@ class TestDeleteWordsBySession:
         words = db.get_words(language=None, limit=100, offset=0)["words"]
         assert any(w["word"] == "bonjour" for w in words)
         assert not any(w["word"] == "hola" for w in words)
+
+
+class TestPrimitiveRegistry:
+    def test_upsert_creates_with_rank_1(self, tmp_db):
+        """First primitive gets rank 1 and stores its keyword."""
+        p = db.upsert_primitive("日", "sun")
+        assert p["component"] == "日"
+        assert p["keyword"] == "sun"
+        assert p["rank"] == 1
+
+    def test_rank_increments_per_new_component(self, tmp_db):
+        """Each new component gets the next rank."""
+        db.upsert_primitive("日", "sun")
+        second = db.upsert_primitive("月", "moon")
+        assert second["rank"] == 2
+
+    def test_first_write_wins_keyword_not_overwritten(self, tmp_db):
+        """Re-upserting an existing component never changes its keyword."""
+        db.upsert_primitive("日", "sun")
+        again = db.upsert_primitive("日", "day")
+        assert again["keyword"] == "sun"
+
+    def test_note_filled_only_when_empty(self, tmp_db):
+        """note is filled if empty, but an existing note is preserved."""
+        db.upsert_primitive("日", "sun")  # note NULL
+        filled = db.upsert_primitive("日", "sun", note="the sun radical")
+        assert filled["note"] == "the sun radical"
+        kept = db.upsert_primitive("日", "sun", note="something else")
+        assert kept["note"] == "the sun radical"
+
+    def test_get_primitives_ordered_by_rank(self, tmp_db):
+        """get_primitives returns registry ordered by rank."""
+        db.upsert_primitive("月", "moon")
+        db.upsert_primitive("日", "sun")
+        comps = [p["component"] for p in db.get_primitives()]
+        assert comps == ["月", "日"]
