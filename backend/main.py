@@ -21,6 +21,7 @@ from database import (
     insert_words_bulk,
     review_word,
     update_word,
+    upsert_hanzi,
     upsert_primitive,
 )
 from fastapi import FastAPI, HTTPException, Query
@@ -28,6 +29,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from models import (
     BulkVocabularyCreate,
     BulkVocabularyResponse,
+    HanziBulkUpsert,
+    HanziUpsertResponse,
     LoginRequest,
     PrimitiveCreate,
     PrimitiveResponse,
@@ -289,3 +292,34 @@ def create_primitive(payload: PrimitiveCreate):
         The stored PrimitiveResponse.
     """
     return upsert_primitive(payload.component, payload.keyword, payload.note)
+
+
+@app.post("/vocabulary/hanzi/bulk", response_model=HanziUpsertResponse, status_code=201)
+def upsert_hanzi_bulk(payload: HanziBulkUpsert):
+    """Create or enrich up to 50 Heisig hanzi cards, matching existing cards by word.
+
+    Applies the upsert policies in the database layer and tallies the outcomes.
+
+    Args:
+        payload: HanziBulkUpsert with 1-50 cards and an optional session_name for new cards.
+
+    Returns:
+        HanziUpsertResponse with created/enriched/unchanged counts and the resulting cards.
+    """
+    tally = {"created": 0, "enriched": 0, "unchanged": 0}
+    cards = []
+    for item in payload.cards:
+        result = upsert_hanzi(
+            word=item.word,
+            keyword=item.keyword,
+            pinyin=item.pinyin,
+            tone=item.tone,
+            story=item.story,
+            primitives=[p.model_dump() for p in item.primitives],
+            definition=item.definition,
+            example=item.example,
+            session_name=payload.session_name,
+        )
+        tally[result["status"]] += 1
+        cards.append(result["card"])
+    return {**tally, "cards": cards}

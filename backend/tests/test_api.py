@@ -780,3 +780,80 @@ class TestHeisigModels:
         """HanziBulkUpsert rejects an empty card list."""
         with pytest.raises(ValidationError):
             models.HanziBulkUpsert(cards=[])
+
+
+# ---------------------------------------------------------------------------
+# POST /vocabulary/hanzi/bulk
+# ---------------------------------------------------------------------------
+
+
+class TestHanziBulkUpsert:
+    """Tests for POST /vocabulary/hanzi/bulk endpoint."""
+
+    def test_creates_new_hanzi(self, client):
+        """New hanzi are created and counted."""
+        r = client.post(
+            "/vocabulary/hanzi/bulk",
+            headers=AUTH_HEADERS,
+            json={
+                "cards": [
+                    {
+                        "word": "明",
+                        "keyword": "bright",
+                        "pinyin": "míng",
+                        "tone": 2,
+                        "story": "sun and moon rise → bright",
+                        "primitives": [
+                            {"component": "日", "keyword": "sun", "position": 0},
+                            {"component": "月", "keyword": "moon", "position": 1},
+                        ],
+                    }
+                ]
+            },
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["created"] == 1 and body["enriched"] == 0
+        assert body["cards"][0]["language"] == "Chinese"
+        assert [p["keyword"] for p in body["cards"][0]["primitives"]] == ["sun", "moon"]
+
+    def test_second_call_enriches_then_unchanged(self, client):
+        """Re-posting the same payload reports enriched=0, unchanged=1."""
+        payload = {
+            "cards": [
+                {
+                    "word": "好",
+                    "keyword": "good",
+                    "pinyin": "hǎo",
+                    "tone": 3,
+                    "story": "woman and child → good",
+                    "primitives": [],
+                }
+            ]
+        }
+        client.post("/vocabulary/hanzi/bulk", headers=AUTH_HEADERS, json=payload)
+        r = client.post("/vocabulary/hanzi/bulk", headers=AUTH_HEADERS, json=payload)
+        body = r.json()
+        assert body["created"] == 0
+        assert body["unchanged"] == 1
+
+    def test_session_name_applies_to_new_cards(self, client):
+        """Top-level session_name is used for newly created cards."""
+        r = client.post(
+            "/vocabulary/hanzi/bulk",
+            headers=AUTH_HEADERS,
+            json={
+                "session_name": "HSK 1",
+                "cards": [
+                    {
+                        "word": "人",
+                        "keyword": "person",
+                        "pinyin": "rén",
+                        "tone": 2,
+                        "story": "a person strides",
+                        "primitives": [],
+                    }
+                ],
+            },
+        )
+        assert r.json()["cards"][0]["session_name"] == "HSK 1"
