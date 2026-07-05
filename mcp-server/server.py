@@ -23,7 +23,7 @@ class VocabWord(TypedDict, total=False):
 
     Attributes:
         word: The vocabulary word (required).
-        definition: Definition of the word (required).
+        definition: Definition of the word — meaning/usage only, not pinyin (required).
         example: Optional example sentence or usage.
         language: Optional language code.
         session_name: Optional session name to assign the word to.
@@ -125,7 +125,8 @@ mcp = FastMCP(
         "Add multiple vocabulary words at once to the personal study app (max 50). "
         "Use this when the user has asked to save several words from a conversation, "
         "or when you've explained multiple words and want to offer to save them all. "
-        "Pass session_name to group all words under a named study session (e.g. 'Japanese N5 Verbs')."
+        "Pass session_name to group all words under a named study session (e.g. 'Japanese N5 Verbs'). "
+        "The definition field is for meaning/usage only — do NOT put pinyin in it."
     )
 )
 async def bulk_add_vocabulary(
@@ -175,7 +176,8 @@ async def bulk_add_vocabulary(
     description=(
         "Add a single vocabulary word to the personal study app. "
         "Use this when the user wants to save one word with its definition. "
-        "Pass session_name to assign it to a named study session."
+        "Pass session_name to assign it to a named study session. "
+        "The definition field is for meaning/usage only — do NOT put pinyin in it."
     )
 )
 async def add_vocabulary(
@@ -264,6 +266,90 @@ async def delete_session(session_name: str) -> str:
         return f"Failed to delete session: HTTP {e.response.status_code} — {e.response.text}"
     except Exception as e:
         return f"Failed to delete session: {e}"
+
+
+@mcp.tool(
+    description=(
+        "List the Heisig primitive registry (component → keyword). "
+        "ALWAYS call this before add_hanzi so you reuse existing primitive keywords "
+        "for shapes that are already registered, instead of renaming them."
+    )
+)
+async def list_primitives() -> str:
+    """Fetch the primitive registry so decompositions stay consistent.
+
+    Returns:
+        A human-readable list of registered component → keyword mappings, or an error.
+    """
+    try:
+        response = await _http_client.get(
+            f"{VOCAB_API_URL}/primitives",
+            headers={"X-API-Key": VOCAB_API_KEY},
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        prims = response.json()
+        if not prims:
+            return "The primitive registry is empty."
+        lines = [f"{p['component']} → {p['keyword']}" for p in prims]
+        return "Registered primitives:\n" + "\n".join(lines)
+    except httpx.HTTPStatusError as e:
+        return f"Failed to list primitives: HTTP {e.response.status_code} — {e.response.text}"
+    except Exception as e:
+        return f"Failed to list primitives: {e}"
+
+
+@mcp.tool(
+    description=(
+        "Add or enrich Heisig hanzi study cards (max 50). Each card needs the hanzi, a single "
+        "English keyword (meaning only), pinyin with tone mark, the tone number 1-5, a mnemonic "
+        "story linking the primitive keywords to the keyword with the tone cue baked in, and the "
+        "ordered primitive decomposition. Call list_primitives first to reuse existing primitive "
+        "names. Re-calling on a character that already exists enriches it in place and preserves "
+        "its review schedule. Pass session_name to group NEW cards; existing cards keep their session."
+    )
+)
+async def add_hanzi(cards: list[HanziInput], session_name: str | None = None) -> str:
+    """Create or enrich Heisig hanzi cards via the backend upsert endpoint.
+
+    Validates every card against HanziInput before sending. Maps the 'hanzi' field to
+    the backend 'word' field. Returns a create/enrich/unchanged breakdown.
+
+    Args:
+        cards: List of HanziInput cards (1-50).
+        session_name: Optional session for newly created cards only.
+
+    Returns:
+        A summary message with created/enriched/unchanged counts, or an error message.
+    """
+    try:
+        validated = [HanziInput.model_validate(c) for c in cards]
+    except Exception as e:
+        return f"Invalid hanzi input, nothing was saved: {e}"
+
+    payload_cards = []
+    for c in validated:
+        d = c.model_dump()
+        d["word"] = d.pop("hanzi")
+        payload_cards.append(d)
+
+    try:
+        response = await _http_client.post(
+            f"{VOCAB_API_URL}/vocabulary/hanzi/bulk",
+            json={"cards": payload_cards, "session_name": session_name},
+            headers={"X-API-Key": VOCAB_API_KEY},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return (
+            f"Enriched {data['enriched']} existing · created {data['created']} new · "
+            f"{data['unchanged']} unchanged."
+        )
+    except httpx.HTTPStatusError as e:
+        return f"Failed to save hanzi: HTTP {e.response.status_code} — {e.response.text}"
+    except Exception as e:
+        return f"Failed to save hanzi: {e}"
 
 
 # ── Custom routes (unprotected) ───────────────────────────────────────────────
