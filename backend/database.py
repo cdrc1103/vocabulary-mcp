@@ -73,24 +73,35 @@ def _migrate_v1_baseline(conn: sqlite3.Connection) -> None:
 def _migrate_v2_heisig_columns(conn: sqlite3.Connection) -> None:
     """Add Heisig fields to vocabulary.
 
+    Each ALTER TABLE is guarded by a column-existence check so the migration
+    is idempotent and safe to re-run after a crash.
+
     Args:
         conn: Open SQLite connection inside the migration transaction.
     """
-    conn.execute("ALTER TABLE vocabulary ADD COLUMN keyword TEXT")
-    conn.execute("ALTER TABLE vocabulary ADD COLUMN pinyin TEXT")
-    conn.execute("ALTER TABLE vocabulary ADD COLUMN tone INTEGER")
-    conn.execute("ALTER TABLE vocabulary ADD COLUMN story TEXT")
-    conn.execute("ALTER TABLE vocabulary ADD COLUMN story_edited INTEGER DEFAULT 0")
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(vocabulary)").fetchall()}
+    for col, typedef in [
+        ("keyword", "TEXT"),
+        ("pinyin", "TEXT"),
+        ("tone", "INTEGER"),
+        ("story", "TEXT"),
+        ("story_edited", "INTEGER DEFAULT 0"),
+    ]:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE vocabulary ADD COLUMN {col} {typedef}")
 
 
 def _migrate_v3_primitive_tables(conn: sqlite3.Connection) -> None:
     """Create the primitives registry and the card_primitives join table.
 
+    Uses IF NOT EXISTS so the migration is idempotent and safe to re-run
+    after a crash.
+
     Args:
         conn: Open SQLite connection inside the migration transaction.
     """
     conn.execute("""
-        CREATE TABLE primitives (
+        CREATE TABLE IF NOT EXISTS primitives (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             component  TEXT NOT NULL UNIQUE,
             keyword    TEXT NOT NULL,
@@ -99,7 +110,7 @@ def _migrate_v3_primitive_tables(conn: sqlite3.Connection) -> None:
         )
     """)
     conn.execute("""
-        CREATE TABLE card_primitives (
+        CREATE TABLE IF NOT EXISTS card_primitives (
             vocabulary_id INTEGER NOT NULL REFERENCES vocabulary(id) ON DELETE CASCADE,
             primitive_id  INTEGER NOT NULL REFERENCES primitives(id),
             position      INTEGER NOT NULL,
