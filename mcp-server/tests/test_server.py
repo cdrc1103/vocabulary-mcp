@@ -7,9 +7,11 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pytest
 
 # conftest sets env vars before this import
 import server as srv
+from pydantic import ValidationError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -317,3 +319,24 @@ class TestDeleteSession:
         ):
             result = asyncio.run(srv.delete_session("Spanish 1"))
         assert "Failed" in result
+
+
+class TestHanziInputModel:
+    """Tests for HanziInput and PrimitiveRefInput Pydantic models."""
+
+    def test_valid_hanzi_input(self):
+        """A well-formed HanziInput validates."""
+        m = srv.HanziInput(
+            hanzi="明",
+            keyword="bright",
+            pinyin="míng",
+            tone=2,
+            story="s",
+            primitives=[{"component": "日", "keyword": "sun", "position": 0}],
+        )
+        assert m.tone == 2
+
+    def test_tone_out_of_range_rejected(self):
+        """tone outside 1..5 raises ValidationError."""
+        with pytest.raises(ValidationError):
+            srv.HanziInput(hanzi="x", keyword="k", pinyin="p", tone=0, story="s")

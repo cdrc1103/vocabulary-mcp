@@ -13,6 +13,7 @@ from database import init_db
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import FastMCP
 from oauth_provider import VocabularyOAuthProvider
+from pydantic import BaseModel, Field
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -33,6 +34,46 @@ class VocabWord(TypedDict, total=False):
     example: str
     language: str
     session_name: str
+
+
+class PrimitiveRefInput(BaseModel):
+    """Validated primitive reference for a hanzi decomposition (MCP boundary).
+
+    Attributes:
+        component: The primitive's shape/character.
+        keyword: The keyword to register (first-write-wins server-side).
+        note: Optional gloss.
+        position: Zero-based order within the character.
+    """
+
+    component: str = Field(min_length=1)
+    keyword: str = Field(min_length=1)
+    note: str | None = None
+    position: int = Field(ge=0)
+
+
+class HanziInput(BaseModel):
+    """Validated input for one Heisig hanzi card arriving from chat (MCP boundary).
+
+    Attributes:
+        hanzi: The hanzi character.
+        keyword: Single Heisig keyword (meaning only).
+        pinyin: Pinyin with tone mark.
+        tone: Tone number 1-5 (5 = neutral).
+        story: Mnemonic story with the tone cue baked in.
+        definition: Meaning/usage for a new card; ignored on enrich. NOT for pinyin.
+        example: Optional usage sentence for a new card.
+        primitives: Ordered primitive decomposition.
+    """
+
+    hanzi: str = Field(min_length=1)
+    keyword: str = Field(min_length=1)
+    pinyin: str = Field(min_length=1)
+    tone: int = Field(ge=1, le=5)
+    story: str = Field(min_length=1)
+    definition: str | None = None
+    example: str | None = None
+    primitives: list[PrimitiveRefInput] = Field(default_factory=list)
 
 
 VOCAB_API_URL = os.getenv("VOCAB_API_URL", "http://localhost:8000")
