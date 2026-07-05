@@ -337,20 +337,29 @@ class TestSessions:
         db.init_db()
         db.init_db()  # should not raise
 
-    def test_existing_words_migrated_to_misc(self):
-        """Test that words with NULL session_id are assigned to misc on init_db."""
+    def test_existing_words_migrated_to_misc(self, tmp_path, monkeypatch):
+        """Test that NULL session_id words in a legacy DB are assigned to misc on init_db.
+
+        Simulates a pre-migration DB (user_version 0) with an existing vocabulary row
+        that has no session_id, then verifies init_db assigns it to the 'misc' session.
+        """
         import sqlite3
 
         import database as db_module
 
-        # Insert a word directly bypassing session logic
-        conn = sqlite3.connect(db_module.DATABASE_PATH)
-        conn.execute(
-            "INSERT INTO vocabulary (word, definition, language) VALUES ('raw', 'raw', 'en')"
+        legacy = str(tmp_path / "legacy.db")
+        legacy_conn = sqlite3.connect(legacy)
+        legacy_conn.executescript(
+            "CREATE TABLE sessions (id INTEGER PRIMARY KEY, name TEXT UNIQUE, date TEXT, created_at TEXT);"
+            "CREATE TABLE vocabulary (id INTEGER PRIMARY KEY, word TEXT, definition TEXT, example TEXT, "
+            "language TEXT, created_at TEXT, interval INTEGER, ease_factor REAL, repetitions INTEGER, "
+            "next_review TEXT, session_id INTEGER);"
+            "INSERT INTO vocabulary (word, definition, language) VALUES ('raw', 'raw', 'en');"
         )
-        conn.commit()
-        conn.close()
-        db.init_db()  # re-run migration
+        legacy_conn.commit()
+        legacy_conn.close()
+        monkeypatch.setattr(db_module, "DATABASE_PATH", legacy)
+        db.init_db()
         result = db.get_words(language=None, limit=100, offset=0)
         raw = next(w for w in result["words"] if w["word"] == "raw")
         assert raw["session_name"] == "misc"
