@@ -474,7 +474,9 @@ def get_words(
             """,
             [*params, limit, offset],
         ).fetchall()
-    return {"total": total, "words": [dict(r) for r in rows]}
+        cards = [dict(r) for r in rows]
+        _attach_primitives(conn, cards)
+    return {"total": total, "words": cards}
 
 
 def get_due_words(
@@ -512,7 +514,9 @@ def get_due_words(
             """,
             params,
         ).fetchall()
-    return [dict(r) for r in rows]
+        cards = [dict(r) for r in rows]
+        _attach_primitives(conn, cards)
+    return cards
 
 
 def review_word(word_id: int, quality: int) -> dict | None:
@@ -555,6 +559,7 @@ def review_word(word_id: int, quality: int) -> dict | None:
             """,
             (new_interval, new_ease, new_reps, next_review, word_id),
         )
+        _attach_primitives(conn, [row])
 
     return {
         **row,
@@ -640,3 +645,125 @@ def delete_words_by_session(session_id: int) -> int | None:
         deleted_count = result.rowcount
         conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
     return deleted_count
+
+
+def _fetch_card(conn: sqlite3.Connection, vocab_id: int) -> dict:
+    """Fetch one card joined with its session name and primitive list.
+
+    Args:
+        conn: Open SQLite connection.
+        vocab_id: The card id to fetch.
+
+    Returns:
+        Card dict including session_name and an ordered primitives list.
+    """
+    row = conn.execute(
+        """
+        SELECT v.*, s.name AS session_name
+        FROM vocabulary v
+        LEFT JOIN sessions s ON v.session_id = s.id
+        WHERE v.id = ?
+        """,
+        (vocab_id,),
+    ).fetchone()
+    card = dict(row)
+    _attach_primitives(conn, [card])
+    return card
+
+
+def upsert_hanzi(
+    word: str,
+    keyword: str,
+    pinyin: str,
+    tone: int,
+    story: str,
+    primitives: list[dict],
+    definition: str | None = None,
+    example: str | None = None,
+    session_name: str | None = None,
+) -> dict:
+    """Create or enrich a Heisig hanzi card, matching an existing card by word alone.
+
+    Applies the six upsert policies: match by word; normalize language to
+    "Chinese" on create; first-write-wins on the primitive registry; on enrich
+    touch only Heisig fields (never SM-2, definition, example, or session); do
+    not clobber a story when story_edited=1; report created/enriched/unchanged.
+
+    Args:
+        word: The hanzi character.
+        keyword: Single Heisig keyword.
+        pinyin: Pinyin with tone mark (e.g. "míng").
+        tone: Tone number 1-5 (5 = neutral).
+        story: Mnemonic story with the tone cue baked in.
+        primitives: List of dicts with component, keyword, note, position.
+        definition: Meaning/usage for a new card; ignored on enrich. Defaults to keyword.
+        example: Optional usage sentence for a new card; ignored on enrich.
+        session_name: Session for a new card only; never moves an existing card.
+
+    Returns:
+        Dict with "status" ("created"|"enriched"|"unchanged") and "card".
+    """
+    with get_connection() as conn:
+        existing = conn.execute("SELECT * FROM vocabulary WHERE word = ?", (word,)).fetchone()
+
+        if existing is None:
+            created_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+            next_review = date.today().isoformat()
+            session = get_or_create_session(session_name or "misc")
+            cur = conn.execute(
+                """
+                INSERT INTO vocabulary
+                    (word, definition, example, language, created_at, next_review, session_id,
+                     keyword, pinyin, tone, story, story_edited)
+                VALUES (?, ?, ?, 'Chinese', ?, ?, ?, ?, ?, ?, ?, 0)
+                """,
+                (
+                    word,
+                    definition or keyword,
+                    example,
+                    created_at,
+                    next_review,
+                    session["id"],
+                    keyword,
+                    pinyin,
+                    tone,
+                    story,
+                ),
+            )
+            vocab_id = cur.lastrowid
+            replace_card_primitives(conn, vocab_id, primitives)
+            return {"status": "created", "card": _fetch_card(conn, vocab_id)}
+
+        existing = dict(existing)
+        vocab_id = existing["id"]
+        effective_story = existing["story"] if existing["story_edited"] else story
+
+        current_prims = conn.execute(
+            "SELECT primitive_id, position FROM card_primitives WHERE vocabulary_id = ? ORDER BY position",
+            (vocab_id,),
+        ).fetchall()
+        # Resolve incoming refs to (primitive_id, position) to detect no-op without mutating.
+        incoming_ids = []
+        for ref in primitives:
+            existing_prim = conn.execute(
+                "SELECT id FROM primitives WHERE component = ?", (ref["component"],)
+            ).fetchone()
+            incoming_ids.append((existing_prim["id"] if existing_prim else None, ref["position"]))
+        prims_unchanged = all(pid is not None for pid, _ in incoming_ids) and (
+            [(r["primitive_id"], r["position"]) for r in current_prims] == incoming_ids
+        )
+        fields_unchanged = (
+            existing["keyword"] == keyword
+            and existing["pinyin"] == pinyin
+            and existing["tone"] == tone
+            and existing["story"] == effective_story
+        )
+        if fields_unchanged and prims_unchanged:
+            return {"status": "unchanged", "card": _fetch_card(conn, vocab_id)}
+
+        conn.execute(
+            "UPDATE vocabulary SET keyword = ?, pinyin = ?, tone = ?, story = ? WHERE id = ?",
+            (keyword, pinyin, tone, effective_story, vocab_id),
+        )
+        replace_card_primitives(conn, vocab_id, primitives)
+        return {"status": "enriched", "card": _fetch_card(conn, vocab_id)}

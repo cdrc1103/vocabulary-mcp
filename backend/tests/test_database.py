@@ -468,3 +468,80 @@ class TestPrimitiveRegistry:
         db.upsert_primitive("日", "sun")
         comps = [p["component"] for p in db.get_primitives()]
         assert comps == ["月", "日"]
+
+
+_PRIMS = [
+    {"component": "日", "keyword": "sun", "note": None, "position": 0},
+    {"component": "月", "keyword": "moon", "note": None, "position": 1},
+]
+
+
+class TestUpsertHanzi:
+    def test_creates_new_card_with_chinese_language(self, tmp_db):
+        """A new hanzi is created with language 'Chinese' and status 'created'."""
+        res = db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon rise → bright", _PRIMS)
+        assert res["status"] == "created"
+        card = res["card"]
+        assert card["language"] == "Chinese"
+        assert card["keyword"] == "bright"
+        assert card["tone"] == 2
+        assert [p["component"] for p in card["primitives"]] == ["日", "月"]
+
+    def test_matches_existing_by_word_regardless_of_language(self, tmp_db):
+        """Enrich hits a legacy card stored under a different language."""
+        legacy = db.insert_word("忙", "máng — busy", None, "unknown")
+        res = db.upsert_hanzi(
+            "忙",
+            "busy",
+            "máng",
+            2,
+            "heart + death → busy",
+            [{"component": "忄", "keyword": "heart", "note": None, "position": 0}],
+        )
+        assert res["status"] == "enriched"
+        assert res["card"]["id"] == legacy["id"]
+
+    def test_enrich_preserves_sm2_and_definition(self, tmp_db):
+        """Enrich never changes SM-2 fields or the existing definition."""
+        legacy = db.insert_word("重", "zhòng — heavy; weight", "你多重?", "Chinese")
+        db.review_word(legacy["id"], 5)  # advance SM-2 away from defaults
+        before = db.get_words(language=None, limit=100, offset=0)["words"]
+        before_card = next(c for c in before if c["id"] == legacy["id"])
+        res = db.upsert_hanzi("重", "heavy", "zhòng", 4, "a thousand miles → heavy", [])
+        card = res["card"]
+        assert card["definition"] == "zhòng — heavy; weight"
+        assert card["example"] == "你多重?"
+        assert card["interval"] == before_card["interval"]
+        assert card["ease_factor"] == before_card["ease_factor"]
+        assert card["repetitions"] == before_card["repetitions"]
+
+    def test_edited_story_not_clobbered(self, tmp_db):
+        """When story_edited=1, upsert leaves the story untouched."""
+        db.upsert_hanzi("明", "bright", "míng", 2, "original story", _PRIMS)
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE vocabulary SET story = 'my story', story_edited = 1 WHERE word = '明'"
+            )
+        res = db.upsert_hanzi("明", "bright", "míng", 2, "new generated story", _PRIMS)
+        assert res["card"]["story"] == "my story"
+
+    def test_identical_reupsert_reports_unchanged(self, tmp_db):
+        """Re-running the exact same hanzi payload reports status 'unchanged'."""
+        db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        res = db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        assert res["status"] == "unchanged"
+
+    def test_session_preserved_on_enrich(self, tmp_db):
+        """session_name applies only to new cards; enrich keeps the existing session."""
+        db.insert_word("好", "hǎo — good", None, "Chinese", session_name="Old Session")
+        res = db.upsert_hanzi(
+            "好", "good", "hǎo", 3, "woman + child → good", [], session_name="New Session"
+        )
+        assert res["card"]["session_name"] == "Old Session"
+
+    def test_reads_include_primitives(self, tmp_db):
+        """get_due_words returns cards with their primitive list attached."""
+        db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        due = db.get_due_words()
+        card = next(c for c in due if c["word"] == "明")
+        assert [p["keyword"] for p in card["primitives"]] == ["sun", "moon"]
