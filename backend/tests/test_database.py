@@ -545,3 +545,23 @@ class TestUpsertHanzi:
         due = db.get_due_words()
         card = next(c for c in due if c["word"] == "明")
         assert [p["keyword"] for p in card["primitives"]] == ["sun", "moon"]
+
+
+class TestDeleteCascade:
+    def test_delete_word_removes_card_primitives(self, tmp_db):
+        """Deleting a vocabulary word also removes its card_primitives rows."""
+        res = db.upsert_hanzi(
+            "明",
+            "bright",
+            "míng",
+            2,
+            "story",
+            [{"component": "日", "keyword": "sun", "note": None, "position": 0}],
+        )
+        word_id = res["card"]["id"]
+        db.delete_word(word_id)
+        with db.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM card_primitives WHERE vocabulary_id = ?", (word_id,)
+            ).fetchall()
+        assert rows == []

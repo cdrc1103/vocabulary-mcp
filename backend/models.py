@@ -65,7 +65,7 @@ class VocabularyResponse(BaseModel):
         pinyin: Pinyin romanization with tone mark for hanzi words.
         tone: Tone number 1-5 (5 = neutral) for hanzi words.
         story: Mnemonic story with tone cue for hanzi words.
-        story_edited: Timestamp of the last story edit (Unix timestamp); 0 if never edited.
+        story_edited: 0/1 flag; 1 when the story was hand-edited (preserves it from add_hanzi overwrite).
         primitives: Ordered primitive decomposition for hanzi words.
     """
 
