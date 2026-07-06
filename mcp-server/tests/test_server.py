@@ -11,6 +11,7 @@ import pytest
 
 # conftest sets env vars before this import
 import server as srv
+import server_heisig
 from pydantic import ValidationError
 
 # ---------------------------------------------------------------------------
@@ -402,7 +403,7 @@ class TestHanziInputModel:
 
     def test_valid_hanzi_input(self):
         """A well-formed HanziInput validates."""
-        m = srv.HanziInput(
+        m = server_heisig.HanziInput(
             hanzi="明",
             keyword="bright",
             pinyin="míng",
@@ -415,4 +416,4 @@ class TestHanziInputModel:
     def test_tone_out_of_range_rejected(self):
         """tone outside 1..5 raises ValidationError."""
         with pytest.raises(ValidationError):
-            srv.HanziInput(hanzi="x", keyword="k", pinyin="p", tone=0, story="s")
+            server_heisig.HanziInput(hanzi="x", keyword="k", pinyin="p", tone=0, story="s")

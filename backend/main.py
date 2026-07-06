@@ -29,17 +29,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from models import (
     BulkVocabularyCreate,
     BulkVocabularyResponse,
-    HanziBulkUpsert,
-    HanziUpsertResponse,
     LoginRequest,
-    PrimitiveCreate,
-    PrimitiveResponse,
     ReviewRequest,
     SessionResponse,
     VocabularyCreate,
-    VocabularyListResponse,
     VocabularyResponse,
     VocabularyUpdate,
+)
+from models_heisig import (
+    HanziBulkUpsert,
+    HanziUpsertResponse,
+    HeisigVocabularyListResponse,
+    HeisigVocabularyResponse,
+    PrimitiveCreate,
+    PrimitiveResponse,
 )
 
 
@@ -146,7 +149,7 @@ def bulk_add_vocabulary(payload: BulkVocabularyCreate):
     return result
 
 
-@app.get("/vocabulary", response_model=VocabularyListResponse)
+@app.get("/vocabulary", response_model=HeisigVocabularyListResponse)
 def list_vocabulary(
     language: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
@@ -167,7 +170,7 @@ def list_vocabulary(
     return get_words(language=language, limit=limit, offset=offset, session_id=session_id)
 
 
-@app.get("/vocabulary/due", response_model=list[VocabularyResponse])
+@app.get("/vocabulary/due", response_model=list[HeisigVocabularyResponse])
 def due_vocabulary(
     created_after: str | None = Query(None),
     session_id: int | None = Query(None),
@@ -185,7 +188,7 @@ def due_vocabulary(
     return get_due_words(created_after=created_after, session_id=session_id)
 
 
-@app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)
+@app.patch("/vocabulary/{word_id}/review", response_model=HeisigVocabularyResponse)
 def submit_review(word_id: int, payload: ReviewRequest):
     """Submit a review for a word and update SM-2 state.
 
@@ -205,7 +208,7 @@ def submit_review(word_id: int, payload: ReviewRequest):
     return result
 
 
-@app.patch("/vocabulary/{word_id}", response_model=VocabularyResponse)
+@app.patch("/vocabulary/{word_id}", response_model=HeisigVocabularyResponse)
 def update_vocabulary_content(word_id: int, payload: VocabularyUpdate):
     """Update the content of a vocabulary word without changing SM-2 state.
 

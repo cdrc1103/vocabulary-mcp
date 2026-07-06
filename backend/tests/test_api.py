@@ -6,7 +6,7 @@ Tests all CRUD endpoints, authentication, pagination, and error handling.
 import time
 
 import jwt
-import models
+import models_heisig
 import pytest
 from pydantic import ValidationError
 
@@ -755,7 +755,7 @@ class TestHeisigModels:
 
     def test_hanzi_upsert_valid(self):
         """A well-formed HanziUpsert validates and keeps its primitives."""
-        m = models.HanziUpsert(
+        m = models_heisig.HanziUpsert(
             word="明",
             keyword="bright",
             pinyin="míng",
@@ -769,17 +769,17 @@ class TestHeisigModels:
     def test_tone_out_of_range_rejected(self):
         """tone outside 1..5 fails validation."""
         with pytest.raises(ValidationError):
-            models.HanziUpsert(word="x", keyword="k", pinyin="p", tone=6, story="s")
+            models_heisig.HanziUpsert(word="x", keyword="k", pinyin="p", tone=6, story="s")
 
     def test_negative_position_rejected(self):
         """A negative primitive position fails validation."""
         with pytest.raises(ValidationError):
-            models.PrimitiveRef(component="日", keyword="sun", position=-1)
+            models_heisig.PrimitiveRef(component="日", keyword="sun", position=-1)
 
     def test_bulk_limits_enforced(self):
         """HanziBulkUpsert rejects an empty card list."""
         with pytest.raises(ValidationError):
-            models.HanziBulkUpsert(cards=[])
+            models_heisig.HanziBulkUpsert(cards=[])
 
 
 # ---------------------------------------------------------------------------
