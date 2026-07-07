@@ -2,6 +2,7 @@
 
 Exposes vocabulary operations as MCP tools accessible to Claude and other AI clients.
 Supports OAuth 2.0 authentication with configurable authorization endpoints.
+Heisig-specific tools are registered from server_heisig.py.
 """
 
 import os
@@ -13,6 +14,7 @@ from database import init_db
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import FastMCP
 from oauth_provider import VocabularyOAuthProvider
+from server_heisig import register_tools
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -22,7 +24,7 @@ class VocabWord(TypedDict, total=False):
 
     Attributes:
         word: The vocabulary word (required).
-        definition: Definition of the word (required).
+        definition: Definition of the word — meaning/usage only, not pinyin (required).
         example: Optional example sentence or usage.
         language: Optional language code.
         session_name: Optional session name to assign the word to.
@@ -84,7 +86,8 @@ mcp = FastMCP(
         "Add multiple vocabulary words at once to the personal study app (max 50). "
         "Use this when the user has asked to save several words from a conversation, "
         "or when you've explained multiple words and want to offer to save them all. "
-        "Pass session_name to group all words under a named study session (e.g. 'Japanese N5 Verbs')."
+        "Pass session_name to group all words under a named study session (e.g. 'Japanese N5 Verbs'). "
+        "The definition field is for meaning/usage only — do NOT put pinyin in it."
     )
 )
 async def bulk_add_vocabulary(
@@ -134,7 +137,8 @@ async def bulk_add_vocabulary(
     description=(
         "Add a single vocabulary word to the personal study app. "
         "Use this when the user wants to save one word with its definition. "
-        "Pass session_name to assign it to a named study session."
+        "Pass session_name to assign it to a named study session. "
+        "The definition field is for meaning/usage only — do NOT put pinyin in it."
     )
 )
 async def add_vocabulary(
@@ -224,6 +228,10 @@ async def delete_session(session_name: str) -> str:
     except Exception as e:
         return f"Failed to delete session: {e}"
 
+
+# ── Heisig tools (registered from server.heisig) ─────────────────────────────
+
+list_primitives, add_hanzi = register_tools(mcp, _http_client, VOCAB_API_URL, VOCAB_API_KEY)
 
 # ── Custom routes (unprotected) ───────────────────────────────────────────────
 

@@ -6,6 +6,9 @@ Tests all CRUD endpoints, authentication, pagination, and error handling.
 import time
 
 import jwt
+import models.heisig as models_heisig
+import pytest
+from pydantic import ValidationError
 
 from tests.conftest import AUTH_HEADERS, TEST_API_KEY, TEST_PASSWORD
 
@@ -144,6 +147,7 @@ class TestAddVocabulary:
         assert data["word"] == "bonjour"
         assert data["language"] == "French"
         assert "id" in data
+        assert data["heisig"] is None
 
     def test_missing_required_fields_returns_422(self, client):
         """Test creating word without required fields returns 422."""
@@ -707,3 +711,154 @@ class TestDeleteVocabularySession:
         """Test DELETE /vocabulary/session/{id} requires authentication."""
         r = client.delete("/vocabulary/session/1")
         assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Heisig Models Validation
+# ---------------------------------------------------------------------------
+
+
+class TestPrimitivesEndpoints:
+    """Tests for GET/POST /primitives endpoints."""
+
+    def test_post_creates_primitive(self, client):
+        """POST /primitives registers a primitive with rank 1."""
+        r = client.post(
+            "/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "sun"}
+        )
+        assert r.status_code == 201
+        assert r.json()["keyword"] == "sun"
+        assert r.json()["rank"] == 1
+
+    def test_post_is_first_write_wins(self, client):
+        """POST /primitives never overwrites an existing keyword."""
+        client.post("/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "sun"})
+        r = client.post(
+            "/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "day"}
+        )
+        assert r.json()["keyword"] == "sun"
+
+    def test_get_lists_primitives(self, client):
+        """GET /primitives returns the registry."""
+        client.post("/primitives", headers=AUTH_HEADERS, json={"component": "日", "keyword": "sun"})
+        r = client.get("/primitives", headers=AUTH_HEADERS)
+        assert r.status_code == 200
+        assert [p["component"] for p in r.json()] == ["日"]
+
+
+# ---------------------------------------------------------------------------
+# Heisig Models Validation
+# ---------------------------------------------------------------------------
+
+
+class TestHeisigModels:
+    """Tests for Heisig pydantic model validation."""
+
+    def test_hanzi_upsert_valid(self):
+        """A well-formed HanziUpsert validates and keeps its primitives."""
+        m = models_heisig.HanziUpsert(
+            word="明",
+            keyword="bright",
+            pinyin="míng",
+            tone=2,
+            story="s",
+            primitives=[{"component": "日", "keyword": "sun", "position": 0}],
+        )
+        assert m.tone == 2
+        assert m.primitives[0].component == "日"
+
+    def test_tone_out_of_range_rejected(self):
+        """tone outside 1..5 fails validation."""
+        with pytest.raises(ValidationError):
+            models_heisig.HanziUpsert(word="x", keyword="k", pinyin="p", tone=6, story="s")
+
+    def test_negative_position_rejected(self):
+        """A negative primitive position fails validation."""
+        with pytest.raises(ValidationError):
+            models_heisig.PrimitiveRef(component="日", keyword="sun", position=-1)
+
+    def test_bulk_limits_enforced(self):
+        """HanziBulkUpsert rejects an empty card list."""
+        with pytest.raises(ValidationError):
+            models_heisig.HanziBulkUpsert(cards=[])
+
+
+# ---------------------------------------------------------------------------
+# POST /vocabulary/hanzi/bulk
+# ---------------------------------------------------------------------------
+
+
+class TestHanziBulkUpsert:
+    """Tests for POST /vocabulary/hanzi/bulk endpoint."""
+
+    def test_creates_new_hanzi(self, client):
+        """New hanzi are created and counted."""
+        r = client.post(
+            "/vocabulary/hanzi/bulk",
+            headers=AUTH_HEADERS,
+            json={
+                "cards": [
+                    {
+                        "word": "明",
+                        "keyword": "bright",
+                        "pinyin": "míng",
+                        "tone": 2,
+                        "story": "sun and moon rise → bright",
+                        "primitives": [
+                            {"component": "日", "keyword": "sun", "position": 0},
+                            {"component": "月", "keyword": "moon", "position": 1},
+                        ],
+                    }
+                ]
+            },
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["created"] == 1 and body["enriched"] == 0
+        assert body["cards"][0]["language"] == "Chinese"
+        heisig = body["cards"][0]["heisig"]
+        assert heisig["keyword"] == "bright"
+        assert heisig["pinyin"] == "míng"
+        assert heisig["tone"] == 2
+        assert [p["keyword"] for p in heisig["primitives"]] == ["sun", "moon"]
+
+    def test_second_call_enriches_then_unchanged(self, client):
+        """Re-posting the same payload reports enriched=0, unchanged=1."""
+        payload = {
+            "cards": [
+                {
+                    "word": "好",
+                    "keyword": "good",
+                    "pinyin": "hǎo",
+                    "tone": 3,
+                    "story": "woman and child → good",
+                    "primitives": [],
+                }
+            ]
+        }
+        client.post("/vocabulary/hanzi/bulk", headers=AUTH_HEADERS, json=payload)
+        r = client.post("/vocabulary/hanzi/bulk", headers=AUTH_HEADERS, json=payload)
+        body = r.json()
+        assert body["created"] == 0
+        assert body["unchanged"] == 1
+
+    def test_session_name_applies_to_new_cards(self, client):
+        """Top-level session_name is used for newly created cards."""
+        r = client.post(
+            "/vocabulary/hanzi/bulk",
+            headers=AUTH_HEADERS,
+            json={
+                "session_name": "HSK 1",
+                "cards": [
+                    {
+                        "word": "人",
+                        "keyword": "person",
+                        "pinyin": "rén",
+                        "tone": 2,
+                        "story": "a person strides",
+                        "primitives": [],
+                    }
+                ],
+            },
+        )
+        assert r.json()["cards"][0]["session_name"] == "HSK 1"

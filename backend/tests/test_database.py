@@ -5,7 +5,8 @@ Tests CRUD operations, SRS calculations, and data persistence.
 
 from datetime import date, timedelta
 
-import database as db
+import database.general as db
+import database.heisig as db_h
 import pytest
 
 
@@ -337,20 +338,29 @@ class TestSessions:
         db.init_db()
         db.init_db()  # should not raise
 
-    def test_existing_words_migrated_to_misc(self):
-        """Test that words with NULL session_id are assigned to misc on init_db."""
+    def test_existing_words_migrated_to_misc(self, tmp_path, monkeypatch):
+        """Test that NULL session_id words in a legacy DB are assigned to misc on init_db.
+
+        Simulates a pre-migration DB (user_version 0) with an existing vocabulary row
+        that has no session_id, then verifies init_db assigns it to the 'misc' session.
+        """
         import sqlite3
 
-        import database as db_module
+        import database.general as db_module
 
-        # Insert a word directly bypassing session logic
-        conn = sqlite3.connect(db_module.DATABASE_PATH)
-        conn.execute(
-            "INSERT INTO vocabulary (word, definition, language) VALUES ('raw', 'raw', 'en')"
+        legacy = str(tmp_path / "legacy.db")
+        legacy_conn = sqlite3.connect(legacy)
+        legacy_conn.executescript(
+            "CREATE TABLE sessions (id INTEGER PRIMARY KEY, name TEXT UNIQUE, date TEXT, created_at TEXT);"
+            "CREATE TABLE vocabulary (id INTEGER PRIMARY KEY, word TEXT, definition TEXT, example TEXT, "
+            "language TEXT, created_at TEXT, interval INTEGER, ease_factor REAL, repetitions INTEGER, "
+            "next_review TEXT, session_id INTEGER);"
+            "INSERT INTO vocabulary (word, definition, language) VALUES ('raw', 'raw', 'en');"
         )
-        conn.commit()
-        conn.close()
-        db.init_db()  # re-run migration
+        legacy_conn.commit()
+        legacy_conn.close()
+        monkeypatch.setattr(db_module, "DATABASE_PATH", legacy)
+        db.init_db()
         result = db.get_words(language=None, limit=100, offset=0)
         raw = next(w for w in result["words"] if w["word"] == "raw")
         assert raw["session_name"] == "misc"
@@ -423,3 +433,136 @@ class TestDeleteWordsBySession:
         words = db.get_words(language=None, limit=100, offset=0)["words"]
         assert any(w["word"] == "bonjour" for w in words)
         assert not any(w["word"] == "hola" for w in words)
+
+
+class TestPrimitiveRegistry:
+    def test_upsert_creates_with_rank_1(self, tmp_db):
+        """First primitive gets rank 1 and stores its keyword."""
+        p = db_h.upsert_primitive("日", "sun")
+        assert p["component"] == "日"
+        assert p["keyword"] == "sun"
+        assert p["rank"] == 1
+
+    def test_rank_increments_per_new_component(self, tmp_db):
+        """Each new component gets the next rank."""
+        db_h.upsert_primitive("日", "sun")
+        second = db_h.upsert_primitive("月", "moon")
+        assert second["rank"] == 2
+
+    def test_first_write_wins_keyword_not_overwritten(self, tmp_db):
+        """Re-upserting an existing component never changes its keyword."""
+        db_h.upsert_primitive("日", "sun")
+        again = db_h.upsert_primitive("日", "day")
+        assert again["keyword"] == "sun"
+
+    def test_note_filled_only_when_empty(self, tmp_db):
+        """note is filled if empty, but an existing note is preserved."""
+        db_h.upsert_primitive("日", "sun")  # note NULL
+        filled = db_h.upsert_primitive("日", "sun", note="the sun radical")
+        assert filled["note"] == "the sun radical"
+        kept = db_h.upsert_primitive("日", "sun", note="something else")
+        assert kept["note"] == "the sun radical"
+
+    def test_get_primitives_ordered_by_rank(self, tmp_db):
+        """get_primitives returns registry ordered by rank."""
+        db_h.upsert_primitive("月", "moon")
+        db_h.upsert_primitive("日", "sun")
+        comps = [p["component"] for p in db_h.get_primitives()]
+        assert comps == ["月", "日"]
+
+
+_PRIMS = [
+    {"component": "日", "keyword": "sun", "note": None, "position": 0},
+    {"component": "月", "keyword": "moon", "note": None, "position": 1},
+]
+
+
+class TestUpsertHanzi:
+    def test_creates_new_card_with_chinese_language(self, tmp_db):
+        """A new hanzi is created with language 'Chinese' and status 'created'."""
+        res = db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon rise → bright", _PRIMS)
+        assert res["status"] == "created"
+        card = res["card"]
+        assert card["language"] == "Chinese"
+        assert card["keyword"] == "bright"
+        assert card["tone"] == 2
+        assert [p["component"] for p in card["primitives"]] == ["日", "月"]
+
+    def test_matches_existing_by_word_regardless_of_language(self, tmp_db):
+        """Enrich hits a legacy card stored under a different language."""
+        legacy = db.insert_word("忙", "máng — busy", None, "unknown")
+        res = db_h.upsert_hanzi(
+            "忙",
+            "busy",
+            "máng",
+            2,
+            "heart + death → busy",
+            [{"component": "忄", "keyword": "heart", "note": None, "position": 0}],
+        )
+        assert res["status"] == "enriched"
+        assert res["card"]["id"] == legacy["id"]
+
+    def test_enrich_preserves_sm2_and_definition(self, tmp_db):
+        """Enrich never changes SM-2 fields or the existing definition."""
+        legacy = db.insert_word("重", "zhòng — heavy; weight", "你多重?", "Chinese")
+        db.review_word(legacy["id"], 5)  # advance SM-2 away from defaults
+        before = db.get_words(language=None, limit=100, offset=0)["words"]
+        before_card = next(c for c in before if c["id"] == legacy["id"])
+        res = db_h.upsert_hanzi("重", "heavy", "zhòng", 4, "a thousand miles → heavy", [])
+        card = res["card"]
+        assert card["definition"] == "zhòng — heavy; weight"
+        assert card["example"] == "你多重?"
+        assert card["interval"] == before_card["interval"]
+        assert card["ease_factor"] == before_card["ease_factor"]
+        assert card["repetitions"] == before_card["repetitions"]
+
+    def test_edited_story_not_clobbered(self, tmp_db):
+        """When story_edited=1, upsert leaves the story untouched."""
+        db_h.upsert_hanzi("明", "bright", "míng", 2, "original story", _PRIMS)
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE vocabulary SET story = 'my story', story_edited = 1 WHERE word = '明'"
+            )
+        res = db_h.upsert_hanzi("明", "bright", "míng", 2, "new generated story", _PRIMS)
+        assert res["card"]["story"] == "my story"
+
+    def test_identical_reupsert_reports_unchanged(self, tmp_db):
+        """Re-running the exact same hanzi payload reports status 'unchanged'."""
+        db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        res = db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        assert res["status"] == "unchanged"
+
+    def test_session_preserved_on_enrich(self, tmp_db):
+        """session_name applies only to new cards; enrich keeps the existing session."""
+        db.insert_word("好", "hǎo — good", None, "Chinese", session_name="Old Session")
+        res = db_h.upsert_hanzi(
+            "好", "good", "hǎo", 3, "woman + child → good", [], session_name="New Session"
+        )
+        assert res["card"]["session_name"] == "Old Session"
+
+    def test_reads_include_primitives(self, tmp_db):
+        """get_due_words returns cards with their primitive list attached."""
+        db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        due = db.get_due_words()
+        card = next(c for c in due if c["word"] == "明")
+        assert [p["keyword"] for p in card["primitives"]] == ["sun", "moon"]
+
+
+class TestDeleteCascade:
+    def test_delete_word_removes_card_primitives(self, tmp_db):
+        """Deleting a vocabulary word also removes its card_primitives rows."""
+        res = db_h.upsert_hanzi(
+            "明",
+            "bright",
+            "míng",
+            2,
+            "story",
+            [{"component": "日", "keyword": "sun", "note": None, "position": 0}],
+        )
+        word_id = res["card"]["id"]
+        db.delete_word(word_id)
+        with db.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM card_primitives WHERE vocabulary_id = ?", (word_id,)
+            ).fetchall()
+        assert rows == []

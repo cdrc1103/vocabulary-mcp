@@ -9,7 +9,7 @@ import sqlite3
 from contextlib import asynccontextmanager
 
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
-from database import (
+from database.general import (
     delete_word,
     delete_words_by_session,
     get_due_words,
@@ -21,11 +21,13 @@ from database import (
     review_word,
     update_word,
 )
+from database.heisig import get_primitives, upsert_hanzi, upsert_primitive
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from models import (
+from models.general import (
     BulkVocabularyCreate,
     BulkVocabularyResponse,
+    HanziUpsertResponse,
     LoginRequest,
     ReviewRequest,
     SessionResponse,
@@ -33,6 +35,11 @@ from models import (
     VocabularyListResponse,
     VocabularyResponse,
     VocabularyUpdate,
+)
+from models.heisig import (
+    HanziBulkUpsert,
+    PrimitiveCreate,
+    PrimitiveResponse,
 )
 
 
@@ -122,7 +129,7 @@ def add_vocabulary(payload: VocabularyCreate):
         language=payload.language,
         session_name=payload.session_name,
     )
-    return word
+    return VocabularyResponse.from_row(word)
 
 
 @app.post("/vocabulary/bulk", response_model=BulkVocabularyResponse, status_code=201)
@@ -136,7 +143,10 @@ def bulk_add_vocabulary(payload: BulkVocabularyCreate):
         BulkVocabularyResponse with inserted list and skipped_count.
     """
     result = insert_words_bulk([w.model_dump() for w in payload.words])
-    return result
+    return {
+        "inserted": [VocabularyResponse.from_row(w) for w in result["inserted"]],
+        "skipped_count": result["skipped_count"],
+    }
 
 
 @app.get("/vocabulary", response_model=VocabularyListResponse)
@@ -157,7 +167,11 @@ def list_vocabulary(
     Returns:
         VocabularyListResponse with total count and paginated words.
     """
-    return get_words(language=language, limit=limit, offset=offset, session_id=session_id)
+    result = get_words(language=language, limit=limit, offset=offset, session_id=session_id)
+    return {
+        "total": result["total"],
+        "words": [VocabularyResponse.from_row(w) for w in result["words"]],
+    }
 
 
 @app.get("/vocabulary/due", response_model=list[VocabularyResponse])
@@ -175,7 +189,10 @@ def due_vocabulary(
     Returns:
         List of VocabularyResponse objects ready for study.
     """
-    return get_due_words(created_after=created_after, session_id=session_id)
+    return [
+        VocabularyResponse.from_row(w)
+        for w in get_due_words(created_after=created_after, session_id=session_id)
+    ]
 
 
 @app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)
@@ -195,7 +212,7 @@ def submit_review(word_id: int, payload: ReviewRequest):
     result = review_word(word_id=word_id, quality=payload.quality)
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")
-    return result
+    return VocabularyResponse.from_row(result)
 
 
 @app.patch("/vocabulary/{word_id}", response_model=VocabularyResponse)
@@ -227,7 +244,7 @@ def update_vocabulary_content(word_id: int, payload: VocabularyUpdate):
         ) from err
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")
-    return result
+    return VocabularyResponse.from_row(result)
 
 
 @app.delete("/vocabulary/{word_id}", status_code=204)
@@ -262,3 +279,57 @@ def delete_vocabulary_session(session_id: int):
     if deleted is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"deleted_words": deleted}
+
+
+@app.get("/primitives", response_model=list[PrimitiveResponse])
+def list_primitives():
+    """List the primitive registry ordered by introduction rank.
+
+    Returns:
+        List of PrimitiveResponse objects.
+    """
+    return get_primitives()
+
+
+@app.post("/primitives", response_model=PrimitiveResponse, status_code=201)
+def create_primitive(payload: PrimitiveCreate):
+    """Register a primitive (first-write-wins; existing keyword is preserved).
+
+    Args:
+        payload: PrimitiveCreate with component, keyword, optional note.
+
+    Returns:
+        The stored PrimitiveResponse.
+    """
+    return upsert_primitive(payload.component, payload.keyword, payload.note)
+
+
+@app.post("/vocabulary/hanzi/bulk", response_model=HanziUpsertResponse, status_code=201)
+def upsert_hanzi_bulk(payload: HanziBulkUpsert):
+    """Create or enrich up to 50 Heisig hanzi cards, matching existing cards by word.
+
+    Applies the upsert policies in the database layer and tallies the outcomes.
+
+    Args:
+        payload: HanziBulkUpsert with 1-50 cards and an optional session_name for new cards.
+
+    Returns:
+        HanziUpsertResponse with created/enriched/unchanged counts and the resulting cards.
+    """
+    tally = {"created": 0, "enriched": 0, "unchanged": 0}
+    cards = []
+    for item in payload.cards:
+        result = upsert_hanzi(
+            word=item.word,
+            keyword=item.keyword,
+            pinyin=item.pinyin,
+            tone=item.tone,
+            story=item.story,
+            primitives=[p.model_dump() for p in item.primitives],
+            definition=item.definition,
+            example=item.example,
+            session_name=payload.session_name,
+        )
+        tally[result["status"]] += 1
+        cards.append(VocabularyResponse.from_row(result["card"]))
+    return {**tally, "cards": cards}

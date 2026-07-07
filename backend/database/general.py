@@ -1,8 +1,11 @@
-"""Database operations for vocabulary management.
+"""Database operations for general vocabulary management.
 
 Provides SQLite database access for vocabulary words and sessions, including CRUD
 operations, SRS (SM-2) calculations, and spaced repetition scheduling. Sessions
 allow grouping vocabulary by named study topics.
+
+Heisig hanzi-specific operations (primitive registry, upsert_hanzi) live in
+database.heisig.
 """
 
 import os
@@ -20,58 +23,128 @@ def get_connection() -> sqlite3.Connection:
     """
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
-def init_db():
-    """Initialize SQLite database and create tables if missing.
+def _migrate_v1_baseline(conn: sqlite3.Connection) -> None:
+    """Baseline schema (idempotent): sessions, vocabulary, unique index, misc seed.
 
-    Creates the sessions table, the vocabulary table, and a unique index.
-    Adds the session_id column via an idempotent ALTER TABLE (catches
-    OperationalError if the column already exists). Seeds the 'misc' session
-    and migrates pre-existing vocabulary rows with NULL session_id to it.
+    Written with IF NOT EXISTS / INSERT OR IGNORE so it is a no-op on databases
+    created before the migration runner existed.
+
+    Args:
+        conn: Open SQLite connection inside the migration transaction.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL UNIQUE,
+            date       TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS vocabulary (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            word        TEXT NOT NULL,
+            definition  TEXT NOT NULL,
+            example     TEXT,
+            language    TEXT DEFAULT 'unknown',
+            created_at  TEXT DEFAULT (datetime('now')),
+            interval        INTEGER DEFAULT 1,
+            ease_factor     REAL DEFAULT 2.5,
+            repetitions     INTEGER DEFAULT 0,
+            next_review     TEXT DEFAULT (date('now'))
+        )
+    """)
+    conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uix_word_language
+        ON vocabulary (word, language)
+    """)
+    existing_cols = {r[1] for r in conn.execute("PRAGMA table_info(vocabulary)").fetchall()}
+    if "session_id" not in existing_cols:
+        conn.execute("ALTER TABLE vocabulary ADD COLUMN session_id INTEGER REFERENCES sessions(id)")
+    today = date.today().isoformat()
+    conn.execute("INSERT OR IGNORE INTO sessions (name, date) VALUES ('misc', ?)", (today,))
+    conn.execute("""
+        UPDATE vocabulary
+        SET session_id = (SELECT id FROM sessions WHERE name = 'misc')
+        WHERE session_id IS NULL
+    """)
+
+
+def _migrate_v2_heisig_columns(conn: sqlite3.Connection) -> None:
+    """Add Heisig fields to vocabulary.
+
+    Each ALTER TABLE is guarded by a column-existence check so the migration
+    is idempotent and safe to re-run after a crash.
+
+    Args:
+        conn: Open SQLite connection inside the migration transaction.
+    """
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(vocabulary)").fetchall()}
+    for col, typedef in [
+        ("keyword", "TEXT"),
+        ("pinyin", "TEXT"),
+        ("tone", "INTEGER"),
+        ("story", "TEXT"),
+        ("story_edited", "INTEGER DEFAULT 0"),
+    ]:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE vocabulary ADD COLUMN {col} {typedef}")
+
+
+def _migrate_v3_primitive_tables(conn: sqlite3.Connection) -> None:
+    """Create the primitives registry and the card_primitives join table.
+
+    Uses IF NOT EXISTS so the migration is idempotent and safe to re-run
+    after a crash.
+
+    Args:
+        conn: Open SQLite connection inside the migration transaction.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS primitives (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            component  TEXT NOT NULL UNIQUE,
+            keyword    TEXT NOT NULL,
+            note       TEXT,
+            rank       INTEGER
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS card_primitives (
+            vocabulary_id INTEGER NOT NULL REFERENCES vocabulary(id) ON DELETE CASCADE,
+            primitive_id  INTEGER NOT NULL REFERENCES primitives(id),
+            position      INTEGER NOT NULL,
+            PRIMARY KEY (vocabulary_id, primitive_id)
+        )
+    """)
+
+
+# Ordered migrations. Index + 1 == the user_version they bring the DB to.
+MIGRATIONS = [
+    _migrate_v1_baseline,
+    _migrate_v2_heisig_columns,
+    _migrate_v3_primitive_tables,
+]
+
+
+def init_db() -> None:
+    """Initialize the database by applying all pending migrations in order.
+
+    Uses SQLite's built-in ``PRAGMA user_version`` as the schema version counter.
+    Each migration with an index greater than the current version is applied in
+    order inside a single transaction, and the version is bumped after each.
+    Safe to call repeatedly; already-applied migrations are skipped.
     """
     with get_connection() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS sessions (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                name       TEXT NOT NULL UNIQUE,
-                date       TEXT NOT NULL,
-                created_at TEXT DEFAULT (datetime('now'))
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS vocabulary (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                word        TEXT NOT NULL,
-                definition  TEXT NOT NULL,
-                example     TEXT,
-                language    TEXT DEFAULT 'unknown',
-                created_at  TEXT DEFAULT (datetime('now')),
-
-                interval        INTEGER DEFAULT 1,
-                ease_factor     REAL DEFAULT 2.5,
-                repetitions     INTEGER DEFAULT 0,
-                next_review     TEXT DEFAULT (date('now'))
-            )
-        """)
-        conn.execute("""
-            CREATE UNIQUE INDEX IF NOT EXISTS uix_word_language
-            ON vocabulary (word, language)
-        """)
-        try:
-            conn.execute(
-                "ALTER TABLE vocabulary ADD COLUMN session_id INTEGER REFERENCES sessions(id)"
-            )
-        except sqlite3.OperationalError:
-            pass  # column already exists on subsequent startups
-        today = date.today().isoformat()
-        conn.execute("INSERT OR IGNORE INTO sessions (name, date) VALUES ('misc', ?)", (today,))
-        conn.execute("""
-            UPDATE vocabulary
-            SET session_id = (SELECT id FROM sessions WHERE name = 'misc')
-            WHERE session_id IS NULL
-        """)
+        current = conn.execute("PRAGMA user_version").fetchone()[0]
+        for i, migration in enumerate(MIGRATIONS, start=1):
+            if current < i:
+                migration(conn)
+                conn.execute(f"PRAGMA user_version = {i}")
 
 
 def get_or_create_session(name: str, session_date: str | None = None) -> dict:
@@ -106,6 +179,43 @@ def get_sessions() -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute("SELECT * FROM sessions ORDER BY date DESC").fetchall()
     return [dict(r) for r in rows]
+
+
+def _attach_primitives(conn: sqlite3.Connection, cards: list[dict]) -> None:
+    """Attach an ordered ``primitives`` list to each card dict in place.
+
+    Args:
+        conn: Open SQLite connection.
+        cards: List of card dicts each containing an ``id`` key.
+    """
+    if not cards:
+        return
+    ids = [c["id"] for c in cards]
+    placeholders = ",".join("?" * len(ids))
+    rows = conn.execute(
+        f"""
+        SELECT cp.vocabulary_id, p.id, p.component, p.keyword, p.note, p.rank, cp.position
+        FROM card_primitives cp
+        JOIN primitives p ON cp.primitive_id = p.id
+        WHERE cp.vocabulary_id IN ({placeholders})
+        ORDER BY cp.position
+        """,
+        ids,
+    ).fetchall()
+    by_card: dict[int, list[dict]] = {}
+    for r in rows:
+        by_card.setdefault(r["vocabulary_id"], []).append(
+            {
+                "id": r["id"],
+                "component": r["component"],
+                "keyword": r["keyword"],
+                "note": r["note"],
+                "rank": r["rank"],
+                "position": r["position"],
+            }
+        )
+    for c in cards:
+        c["primitives"] = by_card.get(c["id"], [])
 
 
 def apply_sm2(interval: int, ease: float, reps: int, quality: int):
@@ -287,7 +397,9 @@ def get_words(
             """,
             [*params, limit, offset],
         ).fetchall()
-    return {"total": total, "words": [dict(r) for r in rows]}
+        cards = [dict(r) for r in rows]
+        _attach_primitives(conn, cards)
+    return {"total": total, "words": cards}
 
 
 def get_due_words(
@@ -325,7 +437,9 @@ def get_due_words(
             """,
             params,
         ).fetchall()
-    return [dict(r) for r in rows]
+        cards = [dict(r) for r in rows]
+        _attach_primitives(conn, cards)
+    return cards
 
 
 def review_word(word_id: int, quality: int) -> dict | None:
@@ -368,6 +482,7 @@ def review_word(word_id: int, quality: int) -> dict | None:
             """,
             (new_interval, new_ease, new_reps, next_review, word_id),
         )
+        _attach_primitives(conn, [row])
 
     return {
         **row,

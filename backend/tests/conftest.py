@@ -33,7 +33,7 @@ def tmp_db(monkeypatch, tmp_path):
         str: Path to the temporary SQLite database file.
     """
     db_path = str(tmp_path / "test.db")
-    import database as db_module
+    import database.general as db_module
 
     monkeypatch.setattr(db_module, "DATABASE_PATH", db_path)
     db_module.init_db()

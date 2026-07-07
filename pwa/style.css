@@ -487,3 +487,30 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
 }
 
 .btn-edit-card:hover { background: rgba(30, 144, 255, 0.08); }
+
+/* Heisig study block (appended below definition/example on the card back) */
+.card-heisig {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+.card-pinyin {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.card-story {
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+.card-primitives {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+/* Tone colors: 1 red, 2 green, 3 blue, 4 purple, 5 neutral gray */
+.tone-1 { color: #c0392b; }
+.tone-2 { color: #1e8449; }
+.tone-3 { color: #2471a3; }
+.tone-4 { color: #7d3c98; }
+.tone-5 { color: #7f8c8d; }

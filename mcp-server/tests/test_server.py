@@ -7,9 +7,12 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pytest
 
 # conftest sets env vars before this import
 import server as srv
+import server_heisig
+from pydantic import ValidationError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -317,3 +320,100 @@ class TestDeleteSession:
         ):
             result = asyncio.run(srv.delete_session("Spanish 1"))
         assert "Failed" in result
+
+
+def _hanzi_bulk_response(created, enriched, unchanged) -> httpx.Response:
+    """Build a fake /vocabulary/hanzi/bulk response."""
+    return httpx.Response(
+        status_code=201,
+        json={"created": created, "enriched": enriched, "unchanged": unchanged, "cards": []},
+        request=httpx.Request("POST", "http://test-backend/vocabulary/hanzi/bulk"),
+    )
+
+
+_CARD = {
+    "hanzi": "明",
+    "keyword": "bright",
+    "pinyin": "míng",
+    "tone": 2,
+    "story": "sun and moon → bright",
+    "primitives": [{"component": "日", "keyword": "sun", "position": 0}],
+}
+
+
+class TestAddHanzi:
+    """Tests for the add_hanzi and list_primitives MCP tools."""
+
+    def test_tool_registered(self):
+        """add_hanzi and list_primitives tools are registered."""
+        tools = asyncio.run(srv.mcp.list_tools())
+        names = {t.name for t in tools}
+        assert {"add_hanzi", "list_primitives"} <= names
+
+    def test_posts_to_hanzi_bulk_endpoint(self):
+        """add_hanzi calls the /vocabulary/hanzi/bulk endpoint."""
+        mock_post = AsyncMock(return_value=_hanzi_bulk_response(1, 0, 0))
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(srv.add_hanzi([_CARD]))
+        args, _ = mock_post.call_args
+        assert "/vocabulary/hanzi/bulk" in args[0]
+
+    def test_report_mentions_created_and_enriched(self):
+        """The returned message reports created/enriched/unchanged counts."""
+        with patch.object(
+            srv._http_client, "post", new=AsyncMock(return_value=_hanzi_bulk_response(3, 5, 2))
+        ):
+            result = asyncio.run(srv.add_hanzi([_CARD]))
+        assert "3" in result and "5" in result and "2" in result
+
+    def test_maps_hanzi_field_to_word(self):
+        """The 'hanzi' field is sent to the backend as 'word'."""
+        mock_post = AsyncMock(return_value=_hanzi_bulk_response(1, 0, 0))
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(srv.add_hanzi([_CARD]))
+        _, kwargs = mock_post.call_args
+        assert kwargs["json"]["cards"][0]["word"] == "明"
+
+    def test_invalid_tone_returns_error_without_calling_backend(self):
+        """Invalid input fails validation and never hits the backend."""
+        mock_post = AsyncMock()
+        bad = {**_CARD, "tone": 9}
+        with patch.object(srv._http_client, "post", new=mock_post):
+            result = asyncio.run(srv.add_hanzi([bad]))
+        assert "Invalid" in result or "valid" in result.lower()
+        mock_post.assert_not_called()
+
+    def test_list_primitives_calls_get(self):
+        """list_primitives fetches GET /primitives."""
+        resp = httpx.Response(
+            200,
+            json=[{"id": 1, "component": "日", "keyword": "sun", "note": None, "rank": 1}],
+            request=httpx.Request("GET", "http://test-backend/primitives"),
+        )
+        mock_get = AsyncMock(return_value=resp)
+        with patch.object(srv._http_client, "get", new=mock_get):
+            result = asyncio.run(srv.list_primitives())
+        args, _ = mock_get.call_args
+        assert "/primitives" in args[0]
+        assert "日" in result and "sun" in result
+
+
+class TestHanziInputModel:
+    """Tests for HanziInput and PrimitiveRefInput Pydantic models."""
+
+    def test_valid_hanzi_input(self):
+        """A well-formed HanziInput validates."""
+        m = server_heisig.HanziInput(
+            hanzi="明",
+            keyword="bright",
+            pinyin="míng",
+            tone=2,
+            story="s",
+            primitives=[{"component": "日", "keyword": "sun", "position": 0}],
+        )
+        assert m.tone == 2
+
+    def test_tone_out_of_range_rejected(self):
+        """tone outside 1..5 raises ValidationError."""
+        with pytest.raises(ValidationError):
+            server_heisig.HanziInput(hanzi="x", keyword="k", pinyin="p", tone=0, story="s")
