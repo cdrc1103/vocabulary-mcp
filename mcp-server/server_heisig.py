@@ -1,7 +1,7 @@
 """Heisig hanzi MCP tools and input models.
 
 Registers the list_primitives and add_hanzi tools against a FastMCP instance.
-General-purpose vocabulary tools live in server.general.
+General-purpose vocabulary tools live in server.py.
 """
 
 import httpx

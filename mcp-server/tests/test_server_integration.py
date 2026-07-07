@@ -32,7 +32,7 @@ def client(tmp_path):
 
     import database
     import oauth_provider
-    import server.general as server
+    import server
 
     importlib.reload(database)
     importlib.reload(oauth_provider)

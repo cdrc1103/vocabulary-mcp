@@ -74,7 +74,7 @@ Keep them separate. Pick a memorable passphrase for `PWA_PASSWORD`.
    DATABASE_PATH=/data/oauth.db
    PORT=8080
    ```
-4. Start command: `python -m server`
+4. Start command: `python server.py`
 5. Railway will assign a public URL, e.g. `https://<mcp>.railway.app`.
 6. Confirm: `curl https://<mcp>.railway.app/health` → `{"status": "ok"}`
 

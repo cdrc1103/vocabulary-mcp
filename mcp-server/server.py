@@ -2,21 +2,21 @@
 
 Exposes vocabulary operations as MCP tools accessible to Claude and other AI clients.
 Supports OAuth 2.0 authentication with configurable authorization endpoints.
-Heisig-specific tools are registered from server.heisig.
+Heisig-specific tools are registered from server_heisig.py.
 """
 
 import os
 from typing import Required, TypedDict
 
 import httpx
+import uvicorn
 from database import init_db
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import FastMCP
 from oauth_provider import VocabularyOAuthProvider
+from server_heisig import register_tools
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
-
-from server.heisig import register_tools
 
 
 class VocabWord(TypedDict, total=False):
@@ -298,3 +298,9 @@ async def authorize_submit(request: Request) -> HTMLResponse | RedirectResponse:
     client, params = pending
     redirect_url = oauth_provider.complete_authorization(client, params)
     return RedirectResponse(url=redirect_url, status_code=302)
+
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
