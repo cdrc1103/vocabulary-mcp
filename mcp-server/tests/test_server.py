@@ -10,8 +10,8 @@ import httpx
 import pytest
 
 # conftest sets env vars before this import
-import server as srv
-import server_heisig
+import server.general as srv
+import server.heisig as server_heisig
 from pydantic import ValidationError
 
 # ---------------------------------------------------------------------------

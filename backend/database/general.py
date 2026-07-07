@@ -5,7 +5,7 @@ operations, SRS (SM-2) calculations, and spaced repetition scheduling. Sessions
 allow grouping vocabulary by named study topics.
 
 Heisig hanzi-specific operations (primitive registry, upsert_hanzi) live in
-database_heisig.py.
+database.heisig.
 """
 
 import os

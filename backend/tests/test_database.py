@@ -5,8 +5,8 @@ Tests CRUD operations, SRS calculations, and data persistence.
 
 from datetime import date, timedelta
 
-import database as db
-import database_heisig as db_h
+import database.general as db
+import database.heisig as db_h
 import pytest
 
 
@@ -346,7 +346,7 @@ class TestSessions:
         """
         import sqlite3
 
-        import database as db_module
+        import database.general as db_module
 
         legacy = str(tmp_path / "legacy.db")
         legacy_conn = sqlite3.connect(legacy)

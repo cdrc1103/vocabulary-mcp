@@ -1,10 +1,16 @@
 """Pydantic models for general-purpose vocabulary API requests and responses.
 
 Defines data validation and serialization for the core vocabulary feature:
-words, sessions, authentication, and SM-2 scheduling. Heisig hanzi-specific models live in models.heisig.
+words, sessions, authentication, and SM-2 scheduling. VocabularyResponse
+composes in Heisig data via its optional `heisig` field rather than
+subclassing — a card either carries HeisigData or it doesn't, so the shape
+is the same for every card, Heisig or not. Heisig-specific models live in
+models.heisig.
 """
 
 from pydantic import BaseModel, Field
+
+from models.heisig import HeisigData
 
 
 class SessionResponse(BaseModel):
@@ -42,11 +48,12 @@ class VocabularyCreate(BaseModel):
 
 
 class VocabularyResponse(BaseModel):
-    """Response model for a vocabulary word.
+    """Response model for a vocabulary word — the single shape used everywhere.
 
-    Includes SRS (Spaced Repetition System) metadata calculated by the SM-2 algorithm
-    and session assignment. Heisig fields (keyword, pinyin, tone, story, primitives)
-    are available on the HeisigVocabularyResponse subclass in models_heisig.py.
+    Includes SRS (Spaced Repetition System) metadata calculated by the SM-2
+    algorithm and session assignment. `heisig` is populated only for hanzi
+    cards; every other card carries `heisig: None` instead of a spread of
+    null Heisig fields.
 
     Attributes:
         id: Unique word identifier.
@@ -61,6 +68,7 @@ class VocabularyResponse(BaseModel):
         repetitions: Number of successful reviews (SM-2).
         session_id: ID of the session this word belongs to.
         session_name: Name of the session this word belongs to.
+        heisig: Heisig mnemonic data, or None for non-Heisig cards.
     """
 
     id: int
@@ -75,6 +83,48 @@ class VocabularyResponse(BaseModel):
     repetitions: int
     session_id: int | None = None
     session_name: str | None = None
+    heisig: HeisigData | None = None
+
+    @classmethod
+    def from_row(cls, row: dict) -> "VocabularyResponse":
+        """Build a VocabularyResponse from a flat DB row dict.
+
+        DB rows carry Heisig columns (keyword, pinyin, tone, story,
+        story_edited, primitives) inline regardless of card type. This nests
+        them under `heisig` only when the card actually has one (keyword
+        present), so non-Heisig cards don't carry Heisig noise.
+
+        Args:
+            row: Flat dict as returned by the database layer.
+
+        Returns:
+            A VocabularyResponse with `heisig` populated or None.
+        """
+        heisig = None
+        if row.get("keyword") is not None:
+            heisig = HeisigData(
+                keyword=row["keyword"],
+                pinyin=row["pinyin"],
+                tone=row["tone"],
+                story=row["story"],
+                story_edited=row.get("story_edited") or 0,
+                primitives=row.get("primitives", []),
+            )
+        return cls(
+            id=row["id"],
+            word=row["word"],
+            definition=row["definition"],
+            example=row.get("example"),
+            language=row["language"],
+            created_at=row["created_at"],
+            next_review=row["next_review"],
+            interval=row["interval"],
+            ease_factor=row["ease_factor"],
+            repetitions=row["repetitions"],
+            session_id=row.get("session_id"),
+            session_name=row.get("session_name"),
+            heisig=heisig,
+        )
 
 
 class ReviewRequest(BaseModel):
@@ -134,3 +184,31 @@ class BulkVocabularyResponse(BaseModel):
 
     inserted: list[VocabularyResponse]
     skipped_count: int
+
+
+class VocabularyListResponse(BaseModel):
+    """Paginated vocabulary list response.
+
+    Attributes:
+        total: Total count of words matching the query.
+        words: List of VocabularyResponse objects for this page.
+    """
+
+    total: int
+    words: list[VocabularyResponse]
+
+
+class HanziUpsertResponse(BaseModel):
+    """Response model for a hanzi bulk upsert.
+
+    Attributes:
+        created: Count of newly created cards.
+        enriched: Count of existing cards enriched.
+        unchanged: Count of cards whose Heisig data already matched.
+        cards: The resulting cards, each with `heisig` populated.
+    """
+
+    created: int
+    enriched: int
+    unchanged: int
+    cards: list[VocabularyResponse]

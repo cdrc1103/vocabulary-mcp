@@ -147,6 +147,7 @@ class TestAddVocabulary:
         assert data["word"] == "bonjour"
         assert data["language"] == "French"
         assert "id" in data
+        assert data["heisig"] is None
 
     def test_missing_required_fields_returns_422(self, client):
         """Test creating word without required fields returns 422."""
@@ -815,7 +816,11 @@ class TestHanziBulkUpsert:
         body = r.json()
         assert body["created"] == 1 and body["enriched"] == 0
         assert body["cards"][0]["language"] == "Chinese"
-        assert [p["keyword"] for p in body["cards"][0]["primitives"]] == ["sun", "moon"]
+        heisig = body["cards"][0]["heisig"]
+        assert heisig["keyword"] == "bright"
+        assert heisig["pinyin"] == "míng"
+        assert heisig["tone"] == 2
+        assert [p["keyword"] for p in heisig["primitives"]] == ["sun", "moon"]
 
     def test_second_call_enriches_then_unchanged(self, client):
         """Re-posting the same payload reports enriched=0, unchanged=1."""

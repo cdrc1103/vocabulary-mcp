@@ -1,7 +1,7 @@
 """Unit tests for the SM-2 spaced-repetition algorithm."""
 
 import pytest
-from database import apply_sm2
+from database.general import apply_sm2
 
 
 class TestApplySM2FailingQuality:

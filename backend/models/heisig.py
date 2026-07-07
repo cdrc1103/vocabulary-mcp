@@ -1,13 +1,12 @@
 """Pydantic models for Heisig hanzi integration.
 
-Extends the base vocabulary models with Heisig-specific fields: keywords, pinyin,
-tone, mnemonic stories, and the primitive registry. All general vocabulary models
-live in models.general.
+Defines the primitive registry models, the HanziUpsert request models, and
+HeisigData — the composable bundle of Heisig fields nested under
+VocabularyResponse.heisig in models.general. This module has no dependency
+on models.general so that general.py can depend on it without a cycle.
 """
 
 from pydantic import BaseModel, Field
-
-from models.general import VocabularyResponse
 
 
 class PrimitiveRef(BaseModel):
@@ -60,39 +59,24 @@ class PrimitiveResponse(BaseModel):
     position: int | None = None
 
 
-class HeisigVocabularyResponse(VocabularyResponse):
-    """VocabularyResponse extended with Heisig mnemonic fields.
-
-    A card is considered a Heisig card when keyword is not None. Non-Heisig
-    cards carry None for all Heisig fields and an empty primitives list.
+class HeisigData(BaseModel):
+    """Heisig mnemonic data for a hanzi vocabulary card, nested under VocabularyResponse.heisig.
 
     Attributes:
         keyword: Single Heisig keyword (meaning only) for hanzi words.
-        pinyin: Pinyin romanization with tone mark for hanzi words.
-        tone: Tone number 1-5 (5 = neutral) for hanzi words.
-        story: Mnemonic story with tone cue for hanzi words.
+        pinyin: Pinyin romanization with tone mark.
+        tone: Tone number 1-5 (5 = neutral).
+        story: Mnemonic story with tone cue.
         story_edited: 0/1 flag; 1 when the story was hand-edited (preserves it from add_hanzi overwrite).
-        primitives: Ordered primitive decomposition for hanzi words.
+        primitives: Ordered primitive decomposition.
     """
 
-    keyword: str | None = None
-    pinyin: str | None = None
-    tone: int | None = None
-    story: str | None = None
+    keyword: str
+    pinyin: str
+    tone: int
+    story: str
     story_edited: int = 0
     primitives: list[PrimitiveResponse] = Field(default_factory=list)
-
-
-class HeisigVocabularyListResponse(BaseModel):
-    """Paginated vocabulary list response that includes Heisig fields.
-
-    Attributes:
-        total: Total count of words matching the query.
-        words: List of HeisigVocabularyResponse objects for this page.
-    """
-
-    total: int
-    words: list[HeisigVocabularyResponse]
 
 
 class HanziUpsert(BaseModel):
@@ -129,19 +113,3 @@ class HanziBulkUpsert(BaseModel):
 
     cards: list[HanziUpsert] = Field(min_length=1, max_length=50)
     session_name: str | None = None
-
-
-class HanziUpsertResponse(BaseModel):
-    """Response model for a hanzi bulk upsert.
-
-    Attributes:
-        created: Count of newly created cards.
-        enriched: Count of existing cards enriched.
-        unchanged: Count of cards whose Heisig data already matched.
-        cards: The resulting cards with Heisig fields populated.
-    """
-
-    created: int
-    enriched: int
-    unchanged: int
-    cards: list[HeisigVocabularyResponse]

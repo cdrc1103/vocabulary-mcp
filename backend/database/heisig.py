@@ -1,13 +1,13 @@
 """Database operations for Heisig hanzi integration.
 
 Provides SQLite access for the primitive registry, card-primitive links, and
-the hanzi upsert flow. General vocabulary CRUD lives in database.py.
+the hanzi upsert flow. General vocabulary CRUD lives in database.general.
 """
 
 import sqlite3
 from datetime import UTC, date, datetime
 
-from database import _attach_primitives, get_connection, get_or_create_session
+from database.general import _attach_primitives, get_connection, get_or_create_session
 
 
 def _upsert_primitive(

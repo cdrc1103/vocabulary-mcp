@@ -302,20 +302,19 @@ function showCard() {
 }
 
 // Populate or hide the Heisig block on the card back based on whether the
-// card carries Heisig data (keyword present). Additive: definition/example
-// above it are untouched.
+// card carries Heisig data. Additive: definition/example above it are untouched.
 function renderHeisig(card) {
-  const isHeisig = Boolean(card.keyword);
-  studyEl.heisig.classList.toggle("hidden", !isHeisig);
-  if (!isHeisig) return;
+  const heisig = card.heisig;
+  studyEl.heisig.classList.toggle("hidden", !heisig);
+  if (!heisig) return;
 
-  const tone = card.tone || 5;
-  studyEl.pinyin.textContent = card.pinyin || "";
+  const tone = heisig.tone || 5;
+  studyEl.pinyin.textContent = heisig.pinyin || "";
   studyEl.pinyin.className = `card-pinyin tone-${tone}`;
 
-  studyEl.story.textContent = card.story || "";
+  studyEl.story.textContent = heisig.story || "";
 
-  const prims = card.primitives || [];
+  const prims = heisig.primitives || [];
   studyEl.primitives.textContent = prims.map((p) => `${p.component} = ${p.keyword}`).join(" · ");
 }
 

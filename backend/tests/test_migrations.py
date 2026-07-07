@@ -2,7 +2,7 @@
 
 import sqlite3
 
-import database as db
+import database.general as db
 
 
 def _columns(conn, table):

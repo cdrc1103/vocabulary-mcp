@@ -9,7 +9,7 @@ import sqlite3
 from contextlib import asynccontextmanager
 
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
-from database import (
+from database.general import (
     delete_word,
     delete_words_by_session,
     get_due_words,
@@ -21,24 +21,23 @@ from database import (
     review_word,
     update_word,
 )
-from database_heisig import get_primitives, upsert_hanzi, upsert_primitive
+from database.heisig import get_primitives, upsert_hanzi, upsert_primitive
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from models.general import (
     BulkVocabularyCreate,
     BulkVocabularyResponse,
+    HanziUpsertResponse,
     LoginRequest,
     ReviewRequest,
     SessionResponse,
     VocabularyCreate,
+    VocabularyListResponse,
     VocabularyResponse,
     VocabularyUpdate,
 )
 from models.heisig import (
     HanziBulkUpsert,
-    HanziUpsertResponse,
-    HeisigVocabularyListResponse,
-    HeisigVocabularyResponse,
     PrimitiveCreate,
     PrimitiveResponse,
 )
@@ -130,7 +129,7 @@ def add_vocabulary(payload: VocabularyCreate):
         language=payload.language,
         session_name=payload.session_name,
     )
-    return word
+    return VocabularyResponse.from_row(word)
 
 
 @app.post("/vocabulary/bulk", response_model=BulkVocabularyResponse, status_code=201)
@@ -144,10 +143,13 @@ def bulk_add_vocabulary(payload: BulkVocabularyCreate):
         BulkVocabularyResponse with inserted list and skipped_count.
     """
     result = insert_words_bulk([w.model_dump() for w in payload.words])
-    return result
+    return {
+        "inserted": [VocabularyResponse.from_row(w) for w in result["inserted"]],
+        "skipped_count": result["skipped_count"],
+    }
 
 
-@app.get("/vocabulary", response_model=HeisigVocabularyListResponse)
+@app.get("/vocabulary", response_model=VocabularyListResponse)
 def list_vocabulary(
     language: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
@@ -165,10 +167,14 @@ def list_vocabulary(
     Returns:
         VocabularyListResponse with total count and paginated words.
     """
-    return get_words(language=language, limit=limit, offset=offset, session_id=session_id)
+    result = get_words(language=language, limit=limit, offset=offset, session_id=session_id)
+    return {
+        "total": result["total"],
+        "words": [VocabularyResponse.from_row(w) for w in result["words"]],
+    }
 
 
-@app.get("/vocabulary/due", response_model=list[HeisigVocabularyResponse])
+@app.get("/vocabulary/due", response_model=list[VocabularyResponse])
 def due_vocabulary(
     created_after: str | None = Query(None),
     session_id: int | None = Query(None),
@@ -183,10 +189,13 @@ def due_vocabulary(
     Returns:
         List of VocabularyResponse objects ready for study.
     """
-    return get_due_words(created_after=created_after, session_id=session_id)
+    return [
+        VocabularyResponse.from_row(w)
+        for w in get_due_words(created_after=created_after, session_id=session_id)
+    ]
 
 
-@app.patch("/vocabulary/{word_id}/review", response_model=HeisigVocabularyResponse)
+@app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)
 def submit_review(word_id: int, payload: ReviewRequest):
     """Submit a review for a word and update SM-2 state.
 
@@ -203,10 +212,10 @@ def submit_review(word_id: int, payload: ReviewRequest):
     result = review_word(word_id=word_id, quality=payload.quality)
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")
-    return result
+    return VocabularyResponse.from_row(result)
 
 
-@app.patch("/vocabulary/{word_id}", response_model=HeisigVocabularyResponse)
+@app.patch("/vocabulary/{word_id}", response_model=VocabularyResponse)
 def update_vocabulary_content(word_id: int, payload: VocabularyUpdate):
     """Update the content of a vocabulary word without changing SM-2 state.
 
@@ -235,7 +244,7 @@ def update_vocabulary_content(word_id: int, payload: VocabularyUpdate):
         ) from err
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")
-    return result
+    return VocabularyResponse.from_row(result)
 
 
 @app.delete("/vocabulary/{word_id}", status_code=204)
@@ -322,5 +331,5 @@ def upsert_hanzi_bulk(payload: HanziBulkUpsert):
             session_name=payload.session_name,
         )
         tally[result["status"]] += 1
-        cards.append(result["card"])
+        cards.append(VocabularyResponse.from_row(result["card"]))
     return {**tally, "cards": cards}

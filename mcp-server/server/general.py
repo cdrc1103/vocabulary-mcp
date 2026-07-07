@@ -2,20 +2,21 @@
 
 Exposes vocabulary operations as MCP tools accessible to Claude and other AI clients.
 Supports OAuth 2.0 authentication with configurable authorization endpoints.
+Heisig-specific tools are registered from server.heisig.
 """
 
 import os
 from typing import Required, TypedDict
 
 import httpx
-import uvicorn
 from database import init_db
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import FastMCP
 from oauth_provider import VocabularyOAuthProvider
-from server_heisig import register_tools
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+
+from server.heisig import register_tools
 
 
 class VocabWord(TypedDict, total=False):
@@ -228,7 +229,7 @@ async def delete_session(session_name: str) -> str:
         return f"Failed to delete session: {e}"
 
 
-# ── Heisig tools (registered from server_heisig.py) ──────────────────────────
+# ── Heisig tools (registered from server.heisig) ─────────────────────────────
 
 list_primitives, add_hanzi = register_tools(mcp, _http_client, VOCAB_API_URL, VOCAB_API_KEY)
 
@@ -297,9 +298,3 @@ async def authorize_submit(request: Request) -> HTMLResponse | RedirectResponse:
     client, params = pending
     redirect_url = oauth_provider.complete_authorization(client, params)
     return RedirectResponse(url=redirect_url, status_code=302)
-
-
-# ── Entrypoint ────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
