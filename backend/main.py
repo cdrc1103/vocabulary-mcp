@@ -13,7 +13,6 @@ from database import (
     delete_word,
     delete_words_by_session,
     get_due_words,
-    get_primitives,
     get_sessions,
     get_words,
     init_db,
@@ -21,12 +20,11 @@ from database import (
     insert_words_bulk,
     review_word,
     update_word,
-    upsert_hanzi,
-    upsert_primitive,
 )
+from database_heisig import get_primitives, upsert_hanzi, upsert_primitive
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from models import (
+from models.general import (
     BulkVocabularyCreate,
     BulkVocabularyResponse,
     LoginRequest,
@@ -36,7 +34,7 @@ from models import (
     VocabularyResponse,
     VocabularyUpdate,
 )
-from models_heisig import (
+from models.heisig import (
     HanziBulkUpsert,
     HanziUpsertResponse,
     HeisigVocabularyListResponse,

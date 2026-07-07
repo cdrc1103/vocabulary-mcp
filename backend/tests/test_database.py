@@ -6,6 +6,7 @@ Tests CRUD operations, SRS calculations, and data persistence.
 from datetime import date, timedelta
 
 import database as db
+import database_heisig as db_h
 import pytest
 
 
@@ -437,36 +438,36 @@ class TestDeleteWordsBySession:
 class TestPrimitiveRegistry:
     def test_upsert_creates_with_rank_1(self, tmp_db):
         """First primitive gets rank 1 and stores its keyword."""
-        p = db.upsert_primitive("日", "sun")
+        p = db_h.upsert_primitive("日", "sun")
         assert p["component"] == "日"
         assert p["keyword"] == "sun"
         assert p["rank"] == 1
 
     def test_rank_increments_per_new_component(self, tmp_db):
         """Each new component gets the next rank."""
-        db.upsert_primitive("日", "sun")
-        second = db.upsert_primitive("月", "moon")
+        db_h.upsert_primitive("日", "sun")
+        second = db_h.upsert_primitive("月", "moon")
         assert second["rank"] == 2
 
     def test_first_write_wins_keyword_not_overwritten(self, tmp_db):
         """Re-upserting an existing component never changes its keyword."""
-        db.upsert_primitive("日", "sun")
-        again = db.upsert_primitive("日", "day")
+        db_h.upsert_primitive("日", "sun")
+        again = db_h.upsert_primitive("日", "day")
         assert again["keyword"] == "sun"
 
     def test_note_filled_only_when_empty(self, tmp_db):
         """note is filled if empty, but an existing note is preserved."""
-        db.upsert_primitive("日", "sun")  # note NULL
-        filled = db.upsert_primitive("日", "sun", note="the sun radical")
+        db_h.upsert_primitive("日", "sun")  # note NULL
+        filled = db_h.upsert_primitive("日", "sun", note="the sun radical")
         assert filled["note"] == "the sun radical"
-        kept = db.upsert_primitive("日", "sun", note="something else")
+        kept = db_h.upsert_primitive("日", "sun", note="something else")
         assert kept["note"] == "the sun radical"
 
     def test_get_primitives_ordered_by_rank(self, tmp_db):
         """get_primitives returns registry ordered by rank."""
-        db.upsert_primitive("月", "moon")
-        db.upsert_primitive("日", "sun")
-        comps = [p["component"] for p in db.get_primitives()]
+        db_h.upsert_primitive("月", "moon")
+        db_h.upsert_primitive("日", "sun")
+        comps = [p["component"] for p in db_h.get_primitives()]
         assert comps == ["月", "日"]
 
 
@@ -479,7 +480,7 @@ _PRIMS = [
 class TestUpsertHanzi:
     def test_creates_new_card_with_chinese_language(self, tmp_db):
         """A new hanzi is created with language 'Chinese' and status 'created'."""
-        res = db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon rise → bright", _PRIMS)
+        res = db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon rise → bright", _PRIMS)
         assert res["status"] == "created"
         card = res["card"]
         assert card["language"] == "Chinese"
@@ -490,7 +491,7 @@ class TestUpsertHanzi:
     def test_matches_existing_by_word_regardless_of_language(self, tmp_db):
         """Enrich hits a legacy card stored under a different language."""
         legacy = db.insert_word("忙", "máng — busy", None, "unknown")
-        res = db.upsert_hanzi(
+        res = db_h.upsert_hanzi(
             "忙",
             "busy",
             "máng",
@@ -507,7 +508,7 @@ class TestUpsertHanzi:
         db.review_word(legacy["id"], 5)  # advance SM-2 away from defaults
         before = db.get_words(language=None, limit=100, offset=0)["words"]
         before_card = next(c for c in before if c["id"] == legacy["id"])
-        res = db.upsert_hanzi("重", "heavy", "zhòng", 4, "a thousand miles → heavy", [])
+        res = db_h.upsert_hanzi("重", "heavy", "zhòng", 4, "a thousand miles → heavy", [])
         card = res["card"]
         assert card["definition"] == "zhòng — heavy; weight"
         assert card["example"] == "你多重?"
@@ -517,31 +518,31 @@ class TestUpsertHanzi:
 
     def test_edited_story_not_clobbered(self, tmp_db):
         """When story_edited=1, upsert leaves the story untouched."""
-        db.upsert_hanzi("明", "bright", "míng", 2, "original story", _PRIMS)
+        db_h.upsert_hanzi("明", "bright", "míng", 2, "original story", _PRIMS)
         with db.get_connection() as conn:
             conn.execute(
                 "UPDATE vocabulary SET story = 'my story', story_edited = 1 WHERE word = '明'"
             )
-        res = db.upsert_hanzi("明", "bright", "míng", 2, "new generated story", _PRIMS)
+        res = db_h.upsert_hanzi("明", "bright", "míng", 2, "new generated story", _PRIMS)
         assert res["card"]["story"] == "my story"
 
     def test_identical_reupsert_reports_unchanged(self, tmp_db):
         """Re-running the exact same hanzi payload reports status 'unchanged'."""
-        db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
-        res = db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        res = db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
         assert res["status"] == "unchanged"
 
     def test_session_preserved_on_enrich(self, tmp_db):
         """session_name applies only to new cards; enrich keeps the existing session."""
         db.insert_word("好", "hǎo — good", None, "Chinese", session_name="Old Session")
-        res = db.upsert_hanzi(
+        res = db_h.upsert_hanzi(
             "好", "good", "hǎo", 3, "woman + child → good", [], session_name="New Session"
         )
         assert res["card"]["session_name"] == "Old Session"
 
     def test_reads_include_primitives(self, tmp_db):
         """get_due_words returns cards with their primitive list attached."""
-        db.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
+        db_h.upsert_hanzi("明", "bright", "míng", 2, "sun and moon → bright", _PRIMS)
         due = db.get_due_words()
         card = next(c for c in due if c["word"] == "明")
         assert [p["keyword"] for p in card["primitives"]] == ["sun", "moon"]
@@ -550,7 +551,7 @@ class TestUpsertHanzi:
 class TestDeleteCascade:
     def test_delete_word_removes_card_primitives(self, tmp_db):
         """Deleting a vocabulary word also removes its card_primitives rows."""
-        res = db.upsert_hanzi(
+        res = db_h.upsert_hanzi(
             "明",
             "bright",
             "míng",

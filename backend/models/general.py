@@ -1,8 +1,7 @@
 """Pydantic models for general-purpose vocabulary API requests and responses.
 
 Defines data validation and serialization for the core vocabulary feature:
-words, sessions, authentication, and SM-2 scheduling. Heisig-specific models
-live in models_heisig.py.
+words, sessions, authentication, and SM-2 scheduling. Heisig hanzi-specific models live in models.heisig.
 """
 
 from pydantic import BaseModel, Field

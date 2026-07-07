@@ -2,11 +2,12 @@
 
 Extends the base vocabulary models with Heisig-specific fields: keywords, pinyin,
 tone, mnemonic stories, and the primitive registry. All general vocabulary models
-live in models.py.
+live in models.general.
 """
 
-from models import VocabularyResponse
 from pydantic import BaseModel, Field
+
+from models.general import VocabularyResponse
 
 
 class PrimitiveRef(BaseModel):

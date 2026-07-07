@@ -6,7 +6,7 @@ Tests all CRUD endpoints, authentication, pagination, and error handling.
 import time
 
 import jwt
-import models_heisig
+import models.heisig as models_heisig
 import pytest
 from pydantic import ValidationError
 
