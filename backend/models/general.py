@@ -89,10 +89,10 @@ class VocabularyResponse(BaseModel):
     def from_row(cls, row: dict) -> "VocabularyResponse":
         """Build a VocabularyResponse from a flat DB row dict.
 
-        DB rows carry Heisig columns (keyword, pinyin, tone, story,
-        story_edited, primitives) inline regardless of card type. This nests
-        them under `heisig` only when the card actually has one (keyword
-        present), so non-Heisig cards don't carry Heisig noise.
+        DB rows carry Heisig columns (keyword, pinyin, tone) inline
+        regardless of card type. This nests them under `heisig` only when
+        the card actually has one (keyword present), so non-Heisig cards
+        don't carry Heisig noise.
 
         Args:
             row: Flat dict as returned by the database layer.
@@ -106,9 +106,6 @@ class VocabularyResponse(BaseModel):
                 keyword=row["keyword"],
                 pinyin=row["pinyin"],
                 tone=row["tone"],
-                story=row["story"],
-                story_edited=row.get("story_edited") or 0,
-                primitives=row.get("primitives", []),
             )
         return cls(
             id=row["id"],
