@@ -38,5 +38,5 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
-uvicorn==0.50.0
+uvicorn==0.51.0
     # via vocabulary-backend
