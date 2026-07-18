@@ -40,8 +40,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Same-origin static assets: cache-first
-  event.respondWith(cacheFirst(request));
+  // Same-origin static assets: network-first so deploys are picked up immediately,
+  // falling back to cache only when offline.
+  event.respondWith(networkFirstStatic(request));
 });
 
 async function networkFirst(request) {
@@ -60,15 +61,15 @@ async function networkFirst(request) {
   }
 }
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
+async function networkFirstStatic(request) {
   try {
     const response = await fetch(request);
     const cache = await caches.open(CACHE_NAME);
     cache.put(request, response.clone());
     return response;
   } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
     return new Response("Offline", { status: 503 });
   }
 }
