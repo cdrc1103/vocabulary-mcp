@@ -288,14 +288,20 @@ function showCard() {
   studyEl.progress.textContent = `${currentCardIndex + 1} / ${dueCards.length}`;
   studyEl.lang.textContent = card.language || "";
 
+  const toneClass = card.heisig ? `tone-${card.heisig.tone || 5}` : "";
+
   if (reverseMode) {
     // Front: definition. Back: word + example.
     studyEl.word.textContent = card.definition || "";
+    studyEl.word.className = "card-word";
     studyEl.definition.textContent = card.word || "";
+    studyEl.definition.className = `card-definition ${toneClass}`.trim();
   } else {
     // Front: word. Back: definition + example.
     studyEl.word.textContent = card.word || "";
+    studyEl.word.className = `card-word ${toneClass}`.trim();
     studyEl.definition.textContent = card.definition || "";
+    studyEl.definition.className = "card-definition";
   }
   studyEl.example.textContent = card.example || "";
 
