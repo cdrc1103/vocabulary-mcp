@@ -336,19 +336,17 @@ _CARD = {
     "keyword": "bright",
     "pinyin": "míng",
     "tone": 2,
-    "story": "sun and moon → bright",
-    "primitives": [{"component": "日", "keyword": "sun", "position": 0}],
 }
 
 
 class TestAddHanzi:
-    """Tests for the add_hanzi and list_primitives MCP tools."""
+    """Tests for the add_hanzi MCP tool."""
 
     def test_tool_registered(self):
-        """add_hanzi and list_primitives tools are registered."""
+        """add_hanzi tool is registered."""
         tools = asyncio.run(srv.mcp.list_tools())
         names = {t.name for t in tools}
-        assert {"add_hanzi", "list_primitives"} <= names
+        assert "add_hanzi" in names
 
     def test_posts_to_hanzi_bulk_endpoint(self):
         """add_hanzi calls the /vocabulary/hanzi/bulk endpoint."""
@@ -383,37 +381,16 @@ class TestAddHanzi:
         assert "Invalid" in result or "valid" in result.lower()
         mock_post.assert_not_called()
 
-    def test_list_primitives_calls_get(self):
-        """list_primitives fetches GET /primitives."""
-        resp = httpx.Response(
-            200,
-            json=[{"id": 1, "component": "日", "keyword": "sun", "note": None, "rank": 1}],
-            request=httpx.Request("GET", "http://test-backend/primitives"),
-        )
-        mock_get = AsyncMock(return_value=resp)
-        with patch.object(srv._http_client, "get", new=mock_get):
-            result = asyncio.run(srv.list_primitives())
-        args, _ = mock_get.call_args
-        assert "/primitives" in args[0]
-        assert "日" in result and "sun" in result
-
 
 class TestHanziInputModel:
-    """Tests for HanziInput and PrimitiveRefInput Pydantic models."""
+    """Tests for the HanziInput Pydantic model."""
 
     def test_valid_hanzi_input(self):
         """A well-formed HanziInput validates."""
-        m = server_heisig.HanziInput(
-            hanzi="明",
-            keyword="bright",
-            pinyin="míng",
-            tone=2,
-            story="s",
-            primitives=[{"component": "日", "keyword": "sun", "position": 0}],
-        )
+        m = server_heisig.HanziInput(hanzi="明", keyword="bright", pinyin="míng", tone=2)
         assert m.tone == 2
 
     def test_tone_out_of_range_rejected(self):
         """tone outside 1..5 raises ValidationError."""
         with pytest.raises(ValidationError):
-            server_heisig.HanziInput(hanzi="x", keyword="k", pinyin="p", tone=0, story="s")
+            server_heisig.HanziInput(hanzi="x", keyword="k", pinyin="p", tone=0)
