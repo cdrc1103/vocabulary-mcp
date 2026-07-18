@@ -34,7 +34,18 @@ async function apiFetch(path, options = {}) {
 
 // ── Service worker registration ───────────────────────────────────────────────
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
+  // updateViaCache: "none" stops the browser HTTP-caching sw.js itself, so a
+  // changed service worker is always detected instead of being stuck for up to 24h.
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
+
+  // Reload once when a new service worker takes control, so a stale tab always
+  // picks up the latest deploy without the user having to do it manually.
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
 }
 
 // ── Offline detection ─────────────────────────────────────────────────────────
