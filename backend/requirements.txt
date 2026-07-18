@@ -4,7 +4,7 @@ annotated-doc==0.0.4
     # via fastapi
 annotated-types==0.7.0
     # via pydantic
-anyio==4.14.1
+anyio==4.14.2
     # via starlette
 click==8.4.2
     # via uvicorn
@@ -38,5 +38,5 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
-uvicorn==0.50.0
+uvicorn==0.51.0
     # via vocabulary-backend
