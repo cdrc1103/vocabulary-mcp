@@ -499,15 +499,6 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
   font-weight: 700;
   font-size: 1.1rem;
 }
-.card-story {
-  margin-top: 0.5rem;
-  font-style: italic;
-}
-.card-primitives {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  opacity: 0.85;
-}
 /* Tone colors: 1 red, 2 green, 3 blue, 4 purple, 5 neutral gray */
 .tone-1 { color: #c0392b; }
 .tone-2 { color: #1e8449; }
