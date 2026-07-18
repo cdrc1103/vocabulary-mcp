@@ -21,7 +21,7 @@ from database.general import (
     review_word,
     update_word,
 )
-from database.heisig import get_primitives, upsert_hanzi, upsert_primitive
+from database.heisig import upsert_hanzi
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from models.general import (
@@ -36,11 +36,7 @@ from models.general import (
     VocabularyResponse,
     VocabularyUpdate,
 )
-from models.heisig import (
-    HanziBulkUpsert,
-    PrimitiveCreate,
-    PrimitiveResponse,
-)
+from models.heisig import HanziBulkUpsert
 
 
 @asynccontextmanager
@@ -281,29 +277,6 @@ def delete_vocabulary_session(session_id: int):
     return {"deleted_words": deleted}
 
 
-@app.get("/primitives", response_model=list[PrimitiveResponse])
-def list_primitives():
-    """List the primitive registry ordered by introduction rank.
-
-    Returns:
-        List of PrimitiveResponse objects.
-    """
-    return get_primitives()
-
-
-@app.post("/primitives", response_model=PrimitiveResponse, status_code=201)
-def create_primitive(payload: PrimitiveCreate):
-    """Register a primitive (first-write-wins; existing keyword is preserved).
-
-    Args:
-        payload: PrimitiveCreate with component, keyword, optional note.
-
-    Returns:
-        The stored PrimitiveResponse.
-    """
-    return upsert_primitive(payload.component, payload.keyword, payload.note)
-
-
 @app.post("/vocabulary/hanzi/bulk", response_model=HanziUpsertResponse, status_code=201)
 def upsert_hanzi_bulk(payload: HanziBulkUpsert):
     """Create or enrich up to 50 Heisig hanzi cards, matching existing cards by word.
@@ -324,8 +297,6 @@ def upsert_hanzi_bulk(payload: HanziBulkUpsert):
             keyword=item.keyword,
             pinyin=item.pinyin,
             tone=item.tone,
-            story=item.story,
-            primitives=[p.model_dump() for p in item.primitives],
             definition=item.definition,
             example=item.example,
             session_name=payload.session_name,

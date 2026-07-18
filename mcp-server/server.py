@@ -231,7 +231,7 @@ async def delete_session(session_name: str) -> str:
 
 # ── Heisig tools (registered from server.heisig) ─────────────────────────────
 
-list_primitives, add_hanzi = register_tools(mcp, _http_client, VOCAB_API_URL, VOCAB_API_KEY)
+add_hanzi = register_tools(mcp, _http_client, VOCAB_API_URL, VOCAB_API_KEY)
 
 # ── Custom routes (unprotected) ───────────────────────────────────────────────
 

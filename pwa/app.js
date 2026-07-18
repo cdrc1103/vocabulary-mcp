@@ -228,8 +228,6 @@ const studyEl = {
   example: document.getElementById("card-example"),
   heisig: document.getElementById("card-heisig"),
   pinyin: document.getElementById("card-pinyin"),
-  story: document.getElementById("card-story"),
-  primitives: document.getElementById("card-primitives"),
   ratings: document.getElementById("rating-buttons"),
   hint: document.querySelector(".card-hint"),
 };
@@ -290,14 +288,20 @@ function showCard() {
   studyEl.progress.textContent = `${currentCardIndex + 1} / ${dueCards.length}`;
   studyEl.lang.textContent = card.language || "";
 
+  const toneClass = card.heisig ? `tone-${card.heisig.tone || 5}` : "";
+
   if (reverseMode) {
     // Front: definition. Back: word + example.
     studyEl.word.textContent = card.definition || "";
+    studyEl.word.className = "card-word";
     studyEl.definition.textContent = card.word || "";
+    studyEl.definition.className = `card-definition ${toneClass}`.trim();
   } else {
     // Front: word. Back: definition + example.
     studyEl.word.textContent = card.word || "";
+    studyEl.word.className = `card-word ${toneClass}`.trim();
     studyEl.definition.textContent = card.definition || "";
+    studyEl.definition.className = "card-definition";
   }
   studyEl.example.textContent = card.example || "";
 
@@ -322,11 +326,6 @@ function renderHeisig(card) {
   const tone = heisig.tone || 5;
   studyEl.pinyin.textContent = heisig.pinyin || "";
   studyEl.pinyin.className = `card-pinyin tone-${tone}`;
-
-  studyEl.story.textContent = heisig.story || "";
-
-  const prims = heisig.primitives || [];
-  studyEl.primitives.textContent = prims.map((p) => `${p.component} = ${p.keyword}`).join(" · ");
 }
 
 // Flip card on tap / keyboard

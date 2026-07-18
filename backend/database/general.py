@@ -123,11 +123,31 @@ def _migrate_v3_primitive_tables(conn: sqlite3.Connection) -> None:
     """)
 
 
+def _migrate_v4_drop_primitives_and_story(conn: sqlite3.Connection) -> None:
+    """Drop the primitive registry and mnemonic story fields.
+
+    Primitive decomposition and AI-generated mnemonic stories did not work
+    well in practice and are removed. The basic hanzi card (keyword, pinyin,
+    tone) is kept and this migration does not touch it.
+
+    Args:
+        conn: Open SQLite connection inside the migration transaction.
+    """
+    conn.execute("DROP TABLE IF EXISTS card_primitives")
+    conn.execute("DROP TABLE IF EXISTS primitives")
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(vocabulary)").fetchall()}
+    if "story" in existing:
+        conn.execute("ALTER TABLE vocabulary DROP COLUMN story")
+    if "story_edited" in existing:
+        conn.execute("ALTER TABLE vocabulary DROP COLUMN story_edited")
+
+
 # Ordered migrations. Index + 1 == the user_version they bring the DB to.
 MIGRATIONS = [
     _migrate_v1_baseline,
     _migrate_v2_heisig_columns,
     _migrate_v3_primitive_tables,
+    _migrate_v4_drop_primitives_and_story,
 ]
 
 
@@ -179,43 +199,6 @@ def get_sessions() -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute("SELECT * FROM sessions ORDER BY date DESC").fetchall()
     return [dict(r) for r in rows]
-
-
-def _attach_primitives(conn: sqlite3.Connection, cards: list[dict]) -> None:
-    """Attach an ordered ``primitives`` list to each card dict in place.
-
-    Args:
-        conn: Open SQLite connection.
-        cards: List of card dicts each containing an ``id`` key.
-    """
-    if not cards:
-        return
-    ids = [c["id"] for c in cards]
-    placeholders = ",".join("?" * len(ids))
-    rows = conn.execute(
-        f"""
-        SELECT cp.vocabulary_id, p.id, p.component, p.keyword, p.note, p.rank, cp.position
-        FROM card_primitives cp
-        JOIN primitives p ON cp.primitive_id = p.id
-        WHERE cp.vocabulary_id IN ({placeholders})
-        ORDER BY cp.position
-        """,
-        ids,
-    ).fetchall()
-    by_card: dict[int, list[dict]] = {}
-    for r in rows:
-        by_card.setdefault(r["vocabulary_id"], []).append(
-            {
-                "id": r["id"],
-                "component": r["component"],
-                "keyword": r["keyword"],
-                "note": r["note"],
-                "rank": r["rank"],
-                "position": r["position"],
-            }
-        )
-    for c in cards:
-        c["primitives"] = by_card.get(c["id"], [])
 
 
 def apply_sm2(interval: int, ease: float, reps: int, quality: int):
@@ -398,7 +381,6 @@ def get_words(
             [*params, limit, offset],
         ).fetchall()
         cards = [dict(r) for r in rows]
-        _attach_primitives(conn, cards)
     return {"total": total, "words": cards}
 
 
@@ -438,7 +420,6 @@ def get_due_words(
             params,
         ).fetchall()
         cards = [dict(r) for r in rows]
-        _attach_primitives(conn, cards)
     return cards
 
 
@@ -482,8 +463,6 @@ def review_word(word_id: int, quality: int) -> dict | None:
             """,
             (new_interval, new_ease, new_reps, next_review, word_id),
         )
-        _attach_primitives(conn, [row])
-
     return {
         **row,
         "interval": new_interval,
