@@ -213,6 +213,16 @@ let dueCards = [];
 let currentCardIndex = 0;
 let reviewedCount = 0;
 
+// Fisher-Yates shuffle; used so cards from the same session (same next_review,
+// added back-to-back) don't study in the order they were entered.
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // Cache all study-panel elements to avoid repeated getElementById calls
 const studyEl = {
   loading: document.getElementById("study-loading"),
@@ -251,7 +261,7 @@ async function loadStudy(reverse = false) {
     const duePath = params.size ? `/vocabulary/due?${params}` : "/vocabulary/due";
     const res = await apiFetch(duePath);
     if (!res.ok) throw new Error("Failed to load due words");
-    dueCards = await res.json();
+    dueCards = shuffle(await res.json());
   } catch {
     studyEl.loading.classList.add("hidden");
     showErrorMsg(
