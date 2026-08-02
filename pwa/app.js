@@ -618,6 +618,7 @@ const editDefInput = document.getElementById("edit-definition");
 const editExInput = document.getElementById("edit-example");
 const editError = document.getElementById("edit-error");
 const editSaveBtn = document.getElementById("edit-save");
+const editDeleteBtn = document.getElementById("edit-delete");
 
 function onViewportResize() {
   const vv = window.visualViewport;
@@ -697,9 +698,40 @@ async function saveEdit() {
   }
 }
 
+async function deleteEditCard() {
+  const card = dueCards[currentCardIndex];
+  if (!confirm(`Delete "${card.word}"?`)) return;
+
+  editDeleteBtn.disabled = true;
+  editDeleteBtn.textContent = "Deleting…";
+
+  try {
+    const res = await apiFetch(`/vocabulary/${card.id}`, { method: "DELETE" });
+    if (res.ok) {
+      dueCards.splice(currentCardIndex, 1);
+      closeEditSheet();
+      if (currentCardIndex >= dueCards.length) {
+        showStudyDone();
+      } else {
+        showCard();
+      }
+    } else {
+      editError.textContent = "Failed to delete card.";
+      editError.classList.remove("hidden");
+    }
+  } catch {
+    editError.textContent = "Failed to delete card.";
+    editError.classList.remove("hidden");
+  } finally {
+    editDeleteBtn.disabled = false;
+    editDeleteBtn.textContent = "Delete card";
+  }
+}
+
 document.getElementById("btn-edit-card").addEventListener("click", openEditSheet);
 document.getElementById("edit-cancel").addEventListener("click", closeEditSheet);
 editSaveBtn.addEventListener("click", saveEdit);
+editDeleteBtn.addEventListener("click", deleteEditCard);
 editBackdrop.addEventListener("click", (e) => {
   if (e.target === editBackdrop) closeEditSheet();
 });
