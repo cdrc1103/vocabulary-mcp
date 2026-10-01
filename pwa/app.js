@@ -238,6 +238,7 @@ const studyEl = {
   example: document.getElementById("card-example"),
   heisig: document.getElementById("card-heisig"),
   pinyin: document.getElementById("card-pinyin"),
+  translation: document.getElementById("card-translation"),
   ratings: document.getElementById("rating-buttons"),
   hint: document.querySelector(".card-hint"),
 };
@@ -298,22 +299,7 @@ function showCard() {
   studyEl.progress.textContent = `${currentCardIndex + 1} / ${dueCards.length}`;
   studyEl.lang.textContent = card.language || "";
 
-  const toneClass = card.heisig ? `tone-${card.heisig.tone || 5}` : "";
-
-  if (reverseMode) {
-    // Front: definition. Back: word + example.
-    studyEl.word.textContent = card.definition || "";
-    studyEl.word.className = "card-word";
-    studyEl.definition.textContent = card.word || "";
-    studyEl.definition.className = `card-definition ${toneClass}`.trim();
-  } else {
-    // Front: word. Back: definition + example.
-    studyEl.word.textContent = card.word || "";
-    studyEl.word.className = `card-word ${toneClass}`.trim();
-    studyEl.definition.textContent = card.definition || "";
-    studyEl.definition.className = "card-definition";
-  }
-  studyEl.example.textContent = card.example || "";
+  renderCardFaces(card);
 
   flashcard.setAttribute(
     "aria-label",
@@ -321,17 +307,52 @@ function showCard() {
   );
   studyEl.hint.textContent = reverseMode ? "tap to reveal word" : "tap to reveal";
 
-  renderHeisig(card);
   studyEl.ratings.classList.add("hidden");
   studyEl.area.classList.remove("hidden");
 }
 
+// Fill both faces of the card for the current mode.
+// Normal:  front word, back definition + example (+ Heisig pinyin block).
+// Reverse: front pinyin, back hanzi + English translation + example. Cards
+// without pinyin (non-Heisig) fall back to definition on the front and the
+// word on the back, since there is nothing to show as pinyin.
+function renderCardFaces(card) {
+  const heisig = card.heisig;
+  const toneClass = heisig ? `tone-${heisig.tone || 5}` : "";
+  const pinyinFront = reverseMode && !!(heisig && heisig.pinyin);
+
+  if (pinyinFront) {
+    studyEl.word.textContent = heisig.pinyin;
+    studyEl.word.className = `card-word ${toneClass}`.trim();
+    studyEl.definition.textContent = card.word || "";
+    studyEl.definition.className = `card-definition ${toneClass}`.trim();
+    studyEl.translation.textContent = card.definition || "";
+  } else if (reverseMode) {
+    studyEl.word.textContent = card.definition || "";
+    studyEl.word.className = "card-word";
+    studyEl.definition.textContent = card.word || "";
+    studyEl.definition.className = `card-definition ${toneClass}`.trim();
+    studyEl.translation.textContent = "";
+  } else {
+    studyEl.word.textContent = card.word || "";
+    studyEl.word.className = `card-word ${toneClass}`.trim();
+    studyEl.definition.textContent = card.definition || "";
+    studyEl.definition.className = "card-definition";
+    studyEl.translation.textContent = "";
+  }
+  studyEl.translation.classList.toggle("hidden", !pinyinFront);
+  studyEl.example.textContent = card.example || "";
+
+  // Pinyin is already on the front in reverse mode; don't repeat it on the back.
+  renderHeisig(card, !pinyinFront);
+}
+
 // Populate or hide the Heisig block on the card back based on whether the
 // card carries Heisig data. Additive: definition/example above it are untouched.
-function renderHeisig(card) {
+function renderHeisig(card, show = true) {
   const heisig = card.heisig;
-  studyEl.heisig.classList.toggle("hidden", !heisig);
-  if (!heisig) return;
+  studyEl.heisig.classList.toggle("hidden", !heisig || !show);
+  if (!heisig || !show) return;
 
   const tone = heisig.tone || 5;
   studyEl.pinyin.textContent = heisig.pinyin || "";
@@ -673,14 +694,7 @@ async function saveEdit() {
       const updated = await res.json();
       Object.assign(dueCards[currentCardIndex], updated);
       // Refresh displayed text in-place — card stays on back face, ratings stay visible
-      if (reverseMode) {
-        studyEl.word.textContent = updated.definition || "";
-        studyEl.definition.textContent = updated.word || "";
-      } else {
-        studyEl.word.textContent = updated.word || "";
-        studyEl.definition.textContent = updated.definition || "";
-      }
-      studyEl.example.textContent = updated.example || "";
+      renderCardFaces(dueCards[currentCardIndex]);
       closeEditSheet();
     } else if (res.status === 409) {
       editError.textContent = "A word with this name already exists.";
