@@ -497,7 +497,13 @@ header h2 { font-size: 1.25rem; font-weight: 700; flex: 1; letter-spacing: -0.02
   border-radius: 0.75rem;
 }
 
-/* Heisig study block (appended below definition/example on the card back) */
+/* English translation shown under the hanzi on the back in reverse mode */
+.card-translation {
+  margin-top: 0.5rem;
+  font-size: 1.1rem;
+}
+
+/* Heisig study block(appended below definition/example on the card back) */
 .card-heisig {
   margin-top: 1rem;
   padding-top: 0.75rem;
