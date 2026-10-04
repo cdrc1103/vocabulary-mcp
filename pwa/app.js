@@ -119,6 +119,18 @@ let reverseMode = false;
 let createdAfter = null; // ISO date string or null for "All time"
 let currentSessionId = null; // number or null for "All sessions"
 
+const HEISIG_KEY = "vocab_include_heisig";
+let includeHeisig = true; // false hides Heisig hanzi cards from counts and study
+try {
+  includeHeisig = localStorage.getItem(HEISIG_KEY) !== "false";
+} catch {
+  // storage unavailable — keep default
+}
+
+function applyHeisigFilter(cards) {
+  return includeHeisig ? cards : cards.filter((c) => !c.heisig);
+}
+
 // ── Home view ─────────────────────────────────────────────────────────────────
 async function refreshDueCount() {
   document.getElementById("due-words").textContent = "—";
@@ -130,7 +142,7 @@ async function refreshDueCount() {
     const dueRes = await apiFetch(path);
     if (dueRes.ok) {
       const due = await dueRes.json();
-      document.getElementById("due-words").textContent = due.length;
+      document.getElementById("due-words").textContent = applyHeisigFilter(due).length;
     }
   } catch {
     // offline or server down — count stays at "—"
@@ -262,7 +274,7 @@ async function loadStudy(reverse = false) {
     const duePath = params.size ? `/vocabulary/due?${params}` : "/vocabulary/due";
     const res = await apiFetch(duePath);
     if (!res.ok) throw new Error("Failed to load due words");
-    dueCards = shuffle(await res.json());
+    dueCards = shuffle(applyHeisigFilter(await res.json()));
   } catch {
     studyEl.loading.classList.add("hidden");
     showErrorMsg(
@@ -623,6 +635,28 @@ document.getElementById("session-filter").addEventListener("click", (e) => {
   currentSessionId = sid === "all" ? null : parseInt(sid, 10);
   refreshDueCount();
 });
+
+function syncHeisigToggle() {
+  document.querySelectorAll("#heisig-toggle .mode-btn").forEach((b) => {
+    const active = (b.dataset.heisig === "true") === includeHeisig;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-pressed", String(active));
+  });
+}
+
+document.getElementById("heisig-toggle").addEventListener("click", (e) => {
+  const btn = e.target.closest(".mode-btn");
+  if (!btn) return;
+  includeHeisig = btn.dataset.heisig === "true";
+  try {
+    localStorage.setItem(HEISIG_KEY, String(includeHeisig));
+  } catch {
+    // storage unavailable — preference lasts for this page load only
+  }
+  syncHeisigToggle();
+  refreshDueCount();
+});
+syncHeisigToggle();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (getToken()) {
