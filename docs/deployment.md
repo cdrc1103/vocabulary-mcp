@@ -134,7 +134,7 @@ curl https://<backend>.railway.app/health
 curl -X POST https://<backend>.railway.app/vocabulary \
   -H "X-API-Key: <your-key>" \
   -H "Content-Type: application/json" \
-  -d '{"word":"test","definition":"a trial","language":"English"}'
+  -d '{"word":"test","pinyin":"pinyin here","definition":"a trial","language":"English"}'
 
 # Confirm it appears
 curl https://<backend>.railway.app/vocabulary -H "X-API-Key: <your-key>"

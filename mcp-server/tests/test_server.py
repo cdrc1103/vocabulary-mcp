@@ -56,6 +56,9 @@ class TestBulkToolRegistration:
             item_required = schema["$defs"][ref].get("required", [])
         assert "word" in item_required
         assert "definition" in item_required
+        # pinyin has its own required field so it is never packed into the definition
+        assert "pinyin" in word_props
+        assert "pinyin" in item_required
 
 
 class TestBulkAddVocabularySuccess:
@@ -66,8 +69,8 @@ class TestBulkAddVocabularySuccess:
             result = asyncio.run(
                 srv.bulk_add_vocabulary(
                     [
-                        {"word": "a", "definition": "a"},
-                        {"word": "b", "definition": "b"},
+                        {"word": "a", "pinyin": "pīnyīn", "definition": "a"},
+                        {"word": "b", "pinyin": "pīnyīn", "definition": "b"},
                     ]
                 )
             )
@@ -81,8 +84,8 @@ class TestBulkAddVocabularySuccess:
             result = asyncio.run(
                 srv.bulk_add_vocabulary(
                     [
-                        {"word": "a", "definition": "a"},
-                        {"word": "b", "definition": "b"},
+                        {"word": "a", "pinyin": "pīnyīn", "definition": "a"},
+                        {"word": "b", "pinyin": "pīnyīn", "definition": "b"},
                     ]
                 )
             )
@@ -93,7 +96,7 @@ class TestBulkAddVocabularySuccess:
         fake = _make_response(201, {"inserted": [], "skipped_count": 0})
         mock_post = AsyncMock(return_value=fake)
         with patch.object(srv._http_client, "post", new=mock_post):
-            asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+            asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "pinyin": "pīnyīn", "definition": "y"}]))
         args, kwargs = mock_post.call_args
         assert "/vocabulary/bulk" in args[0]
 
@@ -102,7 +105,7 @@ class TestBulkAddVocabularySuccess:
         fake = _make_response(201, {"inserted": [], "skipped_count": 0})
         mock_post = AsyncMock(return_value=fake)
         with patch.object(srv._http_client, "post", new=mock_post):
-            asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+            asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "pinyin": "pīnyīn", "definition": "y"}]))
         _, kwargs = mock_post.call_args
         assert kwargs["headers"]["X-API-Key"] == "test-key"
 
@@ -118,7 +121,7 @@ class TestBulkAddVocabularyErrors:
                 side_effect=httpx.HTTPStatusError("err", request=MagicMock(), response=error_resp)
             ),
         ):
-            result = asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+            result = asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "pinyin": "pīnyīn", "definition": "y"}]))
         assert "Failed" in result
         assert "422" in result
 
@@ -129,7 +132,7 @@ class TestBulkAddVocabularyErrors:
             "post",
             new=AsyncMock(side_effect=Exception("connection refused")),
         ):
-            result = asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "definition": "y"}]))
+            result = asyncio.run(srv.bulk_add_vocabulary([{"word": "x", "pinyin": "pīnyīn", "definition": "y"}]))
         assert "Failed" in result
 
 
@@ -150,6 +153,7 @@ class TestAddVocabularySession:
             {
                 "id": 1,
                 "word": "hola",
+                "pinyin": "pīnyīn",
                 "definition": "hello",
                 "language": "es",
                 "created_at": "2026-06-20 10:00:00",
@@ -164,10 +168,19 @@ class TestAddVocabularySession:
         mock_post = AsyncMock(return_value=fake)
         with patch.object(srv._http_client, "post", new=mock_post):
             asyncio.run(
-                srv.add_vocabulary(word="hola", definition="hello", session_name="Spanish 1")
+                srv.add_vocabulary(word="hola", pinyin="pīnyīn", definition="hello", session_name="Spanish 1")
             )
         _, kwargs = mock_post.call_args
         assert kwargs["json"]["session_name"] == "Spanish 1"
+
+    def test_pinyin_forwarded_as_separate_field(self):
+        """Test add_vocabulary sends pinyin separately from the definition."""
+        mock_post = AsyncMock(return_value=_make_response(201, {}))
+        with patch.object(srv._http_client, "post", new=mock_post):
+            asyncio.run(srv.add_vocabulary(word="变化", pinyin="biànhuà", definition="change"))
+        _, kwargs = mock_post.call_args
+        assert kwargs["json"]["pinyin"] == "biànhuà"
+        assert kwargs["json"]["definition"] == "change"
 
     def test_none_session_name_sent_as_none(self):
         """Test add_vocabulary sends session_name=None when not specified."""
@@ -176,6 +189,7 @@ class TestAddVocabularySession:
             {
                 "id": 1,
                 "word": "x",
+                "pinyin": "pīnyīn",
                 "definition": "y",
                 "language": "unknown",
                 "created_at": "2026-06-20 10:00:00",
@@ -189,7 +203,7 @@ class TestAddVocabularySession:
         )
         mock_post = AsyncMock(return_value=fake)
         with patch.object(srv._http_client, "post", new=mock_post):
-            asyncio.run(srv.add_vocabulary(word="x", definition="y"))
+            asyncio.run(srv.add_vocabulary(word="x", pinyin="pīnyīn", definition="y"))
         _, kwargs = mock_post.call_args
         assert kwargs["json"]["session_name"] is None
 
@@ -202,7 +216,7 @@ class TestBulkAddVocabularySession:
         with patch.object(srv._http_client, "post", new=mock_post):
             asyncio.run(
                 srv.bulk_add_vocabulary(
-                    words=[{"word": "a", "definition": "a"}, {"word": "b", "definition": "b"}],
+                    words=[{"word": "a", "pinyin": "pīnyīn", "definition": "a"}, {"word": "b", "pinyin": "pīnyīn", "definition": "b"}],
                     session_name="Japanese N5",
                 )
             )
@@ -217,7 +231,7 @@ class TestBulkAddVocabularySession:
         with patch.object(srv._http_client, "post", new=mock_post):
             asyncio.run(
                 srv.bulk_add_vocabulary(
-                    words=[{"word": "a", "definition": "a", "session_name": "per-word-session"}]
+                    words=[{"word": "a", "pinyin": "pīnyīn", "definition": "a", "session_name": "per-word-session"}]
                 )
             )
         _, kwargs = mock_post.call_args
@@ -231,7 +245,7 @@ class TestBulkAddVocabularySession:
         with patch.object(srv._http_client, "post", new=mock_post):
             asyncio.run(
                 srv.bulk_add_vocabulary(
-                    words=[{"word": "a", "definition": "a", "session_name": "old-session"}],
+                    words=[{"word": "a", "pinyin": "pīnyīn", "definition": "a", "session_name": "old-session"}],
                     session_name="new-session",
                 )
             )

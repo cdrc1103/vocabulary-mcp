@@ -41,7 +41,7 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/vocabulary \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"word":"épanouissement","definition":"A blossoming or fulfillment","language":"French"}'
+  -d '{"word":"épanouissement","pinyin":"pinyin here","definition":"A blossoming or fulfillment","language":"French"}'
 
 # List all words
 curl http://localhost:8000/vocabulary -H "X-API-Key: $API_KEY"

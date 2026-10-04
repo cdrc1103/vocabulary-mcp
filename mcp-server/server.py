@@ -24,6 +24,7 @@ class VocabWord(TypedDict, total=False):
 
     Attributes:
         word: The vocabulary word (required).
+        pinyin: Pinyin romanization with tone marks, e.g. "biànhuà" (required).
         definition: Definition of the word — meaning/usage only, not pinyin (required).
         example: Optional example sentence or usage.
         language: Optional language code.
@@ -31,6 +32,7 @@ class VocabWord(TypedDict, total=False):
     """
 
     word: Required[str]
+    pinyin: Required[str]
     definition: Required[str]
     example: str
     language: str
@@ -87,6 +89,7 @@ mcp = FastMCP(
         "Use this when the user has asked to save several words from a conversation, "
         "or when you've explained multiple words and want to offer to save them all. "
         "Pass session_name to group all words under a named study session (e.g. 'Japanese N5 Verbs'). "
+        "Always pass pinyin in the separate pinyin field. "
         "The definition field is for meaning/usage only — do NOT put pinyin in it."
     )
 )
@@ -101,7 +104,7 @@ async def bulk_add_vocabulary(
     When session_name is provided it overrides any per-word session_name.
 
     Args:
-        words: List of VocabWord entries with word, definition, and optional fields.
+        words: List of VocabWord entries with word, pinyin, definition, and optional fields.
         session_name: Session name applied to all words in the batch. Auto-created if new.
 
     Returns:
@@ -138,11 +141,13 @@ async def bulk_add_vocabulary(
         "Add a single vocabulary word to the personal study app. "
         "Use this when the user wants to save one word with its definition. "
         "Pass session_name to assign it to a named study session. "
+        "Always pass pinyin in the separate pinyin field. "
         "The definition field is for meaning/usage only — do NOT put pinyin in it."
     )
 )
 async def add_vocabulary(
     word: str,
+    pinyin: str,
     definition: str,
     example: str | None = None,
     language: str | None = None,
@@ -154,7 +159,8 @@ async def add_vocabulary(
 
     Args:
         word: The vocabulary word.
-        definition: Definition of the word.
+        pinyin: Pinyin romanization with tone marks.
+        definition: Definition of the word (meaning only, no pinyin).
         example: Optional example sentence or usage.
         language: Optional language code.
         session_name: Session name to assign the word to. Auto-created if new.
@@ -165,6 +171,7 @@ async def add_vocabulary(
     try:
         payload = {
             "word": word,
+            "pinyin": pinyin,
             "definition": definition,
             "example": example,
             "language": language or "unknown",

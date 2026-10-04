@@ -101,6 +101,6 @@ next_review = (date.today() + timedelta(days=new_interval)).isoformat()
 The PWA supports two orientations of the same card:
 
 - **Normal mode** — front: word, back: definition + example
-- **Reverse mode** — front: pinyin, back: hanzi + English translation + example. Cards without pinyin (non-Heisig) fall back to front: definition, back: word + example
+- **Reverse mode** — front: pinyin, back: hanzi + English translation + example. Pinyin comes from the card's `pinyin` field (legacy cards: parsed from a `pinyin | english` definition). Cards with no recoverable pinyin fall back to front: definition, back: word + example
 
 Both modes submit identical quality scores to the same SM-2 endpoint; the algorithm is unaffected by which side is shown.

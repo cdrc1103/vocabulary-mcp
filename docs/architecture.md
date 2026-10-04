@@ -48,6 +48,7 @@ vocab-app/
 CREATE TABLE vocabulary (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     word        TEXT NOT NULL,
+    pinyin      TEXT,                  -- required on all new cards; NULL only for legacy rows
     definition  TEXT NOT NULL,
     example     TEXT,
     language    TEXT DEFAULT 'unknown',
@@ -75,6 +76,7 @@ X-API-Key: <secret>
 ```json
 {
   "word": "épanouissement",
+  "pinyin": "pinyin required on every new word (separate from the definition)",
   "definition": "A blossoming or flourishing; a state of fulfillment",
   "example": "Elle rayonnait d'épanouissement après sa promotion.",
   "language": "French"
@@ -86,6 +88,7 @@ X-API-Key: <secret>
 {
   "id": 42,
   "word": "épanouissement",
+  "pinyin": "pinyin required on every new word (separate from the definition)",
   "definition": "A blossoming or flourishing; a state of fulfillment",
   "example": "Elle rayonnait d'épanouissement après sa promotion.",
   "language": "French",
@@ -194,6 +197,10 @@ Allow all origins (`*`) since the PWA will be served from a different domain. If
       "type": "string",
       "description": "The word or phrase to save"
     },
+    "pinyin": {
+      "type": "string",
+      "description": "Pinyin romanization with tone marks (required; never put it in the definition)"
+    },
     "definition": {
       "type": "string",
       "description": "A clear, concise definition in English"
@@ -207,7 +214,7 @@ Allow all origins (`*`) since the PWA will be served from a different domain. If
       "description": "The language of the word (e.g. French, Spanish, English)"
     }
   },
-  "required": ["word", "definition"]
+  "required": ["word", "pinyin", "definition"]
 }
 ```
 
@@ -340,7 +347,7 @@ User: "Save 'épanouissement' to my vocab deck"
   │
   ▼
 Claude Desktop
-  │  calls MCP tool: add_vocabulary({ word, definition, example, language })
+  │  calls MCP tool: add_vocabulary({ word, pinyin, definition, example, language })
   ▼
 MCP Server (local)
   │  POST /vocabulary with X-API-Key

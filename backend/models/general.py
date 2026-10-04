@@ -34,13 +34,15 @@ class VocabularyCreate(BaseModel):
 
     Attributes:
         word: The vocabulary word (required).
-        definition: Definition of the word (required).
+        pinyin: Pinyin romanization with tone marks (required, e.g. "biànhuà").
+        definition: Meaning/usage only, no pinyin (required).
         example: Optional example sentence or usage.
         language: Language code (defaults to "unknown").
         session_name: Session to assign the word to. Auto-created if new. Defaults to "misc".
     """
 
     word: str
+    pinyin: str = Field(min_length=1)
     definition: str
     example: str | None = None
     language: str = "unknown"
@@ -58,6 +60,9 @@ class VocabularyResponse(BaseModel):
     Attributes:
         id: Unique word identifier.
         word: The vocabulary word.
+        pinyin: Pinyin romanization, or None for legacy cards created before
+            pinyin was stored separately (clients may fall back to parsing
+            "pinyin | english" out of the definition).
         definition: Definition of the word.
         example: Optional example sentence.
         language: Language code.
@@ -73,6 +78,7 @@ class VocabularyResponse(BaseModel):
 
     id: int
     word: str
+    pinyin: str | None = None
     definition: str
     example: str | None = None
     language: str
@@ -110,6 +116,7 @@ class VocabularyResponse(BaseModel):
         return cls(
             id=row["id"],
             word=row["word"],
+            pinyin=row.get("pinyin"),
             definition=row["definition"],
             example=row.get("example"),
             language=row["language"],

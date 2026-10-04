@@ -233,6 +233,7 @@ def apply_sm2(interval: int, ease: float, reps: int, quality: int):
 
 def insert_word(
     word: str,
+    pinyin: str,
     definition: str,
     example: str | None,
     language: str,
@@ -242,6 +243,7 @@ def insert_word(
 
     Args:
         word: The vocabulary word.
+        pinyin: Pinyin romanization of the word.
         definition: Definition of the word.
         example: Optional example sentence.
         language: Language code or name.
@@ -257,14 +259,16 @@ def insert_word(
     with get_connection() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO vocabulary (word, definition, example, language, created_at, next_review, session_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO vocabulary
+                (word, pinyin, definition, example, language, created_at, next_review, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (word, definition, example, language, created_at, next_review, session["id"]),
+            (word, pinyin, definition, example, language, created_at, next_review, session["id"]),
         )
     return {
         "id": cursor.lastrowid,
         "word": word,
+        "pinyin": pinyin,
         "definition": definition,
         "example": example,
         "language": language,
@@ -286,7 +290,7 @@ def insert_words_bulk(words: list[dict]) -> dict:
     each word its session_id.
 
     Args:
-        words: List of dicts with word, definition, example, language, session_name keys.
+        words: List of dicts with word, pinyin, definition, example, language, session_name keys.
 
     Returns:
         Dictionary with 'inserted' list of created word dicts and 'skipped_count'.
@@ -308,11 +312,12 @@ def insert_words_bulk(words: list[dict]) -> dict:
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO vocabulary
-                    (word, definition, example, language, created_at, next_review, session_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (word, pinyin, definition, example, language, created_at, next_review, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     w["word"],
+                    w["pinyin"],
                     w["definition"],
                     w.get("example"),
                     w.get("language", "unknown"),
@@ -326,6 +331,7 @@ def insert_words_bulk(words: list[dict]) -> dict:
                     {
                         "id": cursor.lastrowid,
                         "word": w["word"],
+                        "pinyin": w["pinyin"],
                         "definition": w["definition"],
                         "example": w.get("example"),
                         "language": w.get("language", "unknown"),
