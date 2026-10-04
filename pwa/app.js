@@ -136,8 +136,59 @@ function applyHeisigFilter(cards) {
 }
 
 // ── Home view ─────────────────────────────────────────────────────────────────
+const homeEl = {
+  heroCount: document.getElementById("hero-count"),
+  heroSub: document.getElementById("hero-sub"),
+  total: document.getElementById("total-words"),
+  due: document.getElementById("due-words"),
+  sectionCount: document.getElementById("section-count"),
+  greeting: document.getElementById("greeting-title"),
+  greetingSub: document.getElementById("greeting-sub"),
+};
+
+const PROVERBS = [
+  ["好好学习，天天向上", "Good good study, day day up"],
+  ["学无止境", "There is no end to learning"],
+  ["活到老，学到老", "Live until old, learn until old"],
+  ["千里之行，始于足下", "A journey of a thousand miles begins with a single step"],
+  ["不积跬步，无以至千里", "Without small steps, you can't travel a thousand miles"],
+  ["熟能生巧", "Practice makes perfect"],
+  ["书山有路勤为径", "On the mountain of books, diligence is the path"],
+  ["三人行，必有我师", "Among three people, one is sure to be my teacher"],
+  ["学而时习之，不亦说乎", "To learn and practice what you learn — is that not a joy?"],
+  ["只要功夫深，铁杵磨成针", "With enough effort, an iron rod grinds into a needle"],
+];
+
+function pickProverb() {
+  const [zh, en] = PROVERBS[Math.floor(Math.random() * PROVERBS.length)];
+  homeEl.greeting.textContent = zh;
+  homeEl.greetingSub.textContent = en;
+}
+
+// null = unknown (loading or offline); otherwise the due-word count
+function renderDue(count) {
+  homeEl.due.textContent = count === null ? "—" : count;
+  homeEl.heroCount.replaceChildren();
+  if (count === null) {
+    homeEl.heroCount.append("— ");
+    const unit = document.createElement("span");
+    unit.textContent = "words";
+    homeEl.heroCount.append(unit);
+    homeEl.heroSub.textContent = "ready for you";
+  } else if (count === 0) {
+    homeEl.heroCount.textContent = "All caught up";
+    homeEl.heroSub.textContent = "No words due right now";
+  } else {
+    homeEl.heroCount.append(String(count), " ");
+    const unit = document.createElement("span");
+    unit.textContent = count === 1 ? "word" : "words";
+    homeEl.heroCount.append(unit);
+    homeEl.heroSub.textContent = "ready for you";
+  }
+}
+
 async function refreshDueCount() {
-  document.getElementById("due-words").textContent = "—";
+  renderDue(null);
   try {
     const params = new URLSearchParams();
     if (createdAfter) params.set("created_after", createdAfter);
@@ -146,7 +197,7 @@ async function refreshDueCount() {
     const dueRes = await apiFetch(`/vocabulary/due?${params}`);
     if (dueRes.ok) {
       const due = await dueRes.json();
-      document.getElementById("due-words").textContent = applyHeisigFilter(due).length;
+      renderDue(applyHeisigFilter(due).length);
     }
   } catch {
     // offline or server down — count stays at "—"
@@ -155,8 +206,9 @@ async function refreshDueCount() {
 
 async function loadHome() {
   showView("home");
-  document.getElementById("total-words").textContent = "—";
-  document.getElementById("due-words").textContent = "—";
+  pickProverb();
+  homeEl.total.textContent = "—";
+  renderDue(null);
   document.getElementById("custom-date").max = new Date().toISOString().slice(0, 10);
   await Promise.all([
     loadSessions(),
@@ -164,7 +216,7 @@ async function loadHome() {
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json();
-          document.getElementById("total-words").textContent = data.total;
+          homeEl.total.textContent = data.total;
         }
       })
       .catch(() => {}),
@@ -172,40 +224,73 @@ async function loadHome() {
   ]);
 }
 
+// ── Vocabulary sections ───────────────────────────────────────────────────────
+// The backend calls these "sessions"; in the UI they are vocabulary sections.
+// They are a flat list (id, name, date) with no hierarchy, so the picker shows
+// one searchable list rather than inventing groups.
+let sections = [];
+
 async function loadSessions() {
-  const container = document.getElementById("session-filter");
-  container.innerHTML = "";
   try {
     const res = await apiFetch("/sessions");
     if (!res.ok) return;
-    const sessions = await res.json();
-
-    const allBtn = document.createElement("button");
-    allBtn.className = "session-btn" + (currentSessionId === null ? " active" : "");
-    allBtn.dataset.sessionId = "all";
-    allBtn.textContent = "All";
-    allBtn.setAttribute("aria-pressed", String(currentSessionId === null));
-    container.appendChild(allBtn);
-
-    for (const s of sessions) {
-      const btn = document.createElement("button");
-      const isActive = currentSessionId === s.id;
-      btn.className = "session-btn" + (isActive ? " active" : "");
-      btn.dataset.sessionId = String(s.id);
-      btn.textContent = s.name;
-      btn.setAttribute("aria-pressed", String(isActive));
-      container.appendChild(btn);
+    sections = await res.json();
+    // A previously selected section may have been deleted server-side.
+    if (currentSessionId !== null && !sections.some((s) => s.id === currentSessionId)) {
+      currentSessionId = null;
     }
+    homeEl.sectionCount.textContent = sections.length;
+    updateSectionTrigger();
   } catch {
-    // offline — session filter stays empty
+    // offline — keep whatever sections we already have
   }
 }
 
+function currentSectionName() {
+  const section = sections.find((s) => s.id === currentSessionId);
+  return section ? section.name : "All sections";
+}
+
+function updateSectionTrigger() {
+  const name = currentSectionName();
+  const text = document.getElementById("section-trigger-text");
+  text.textContent = name;
+  document.getElementById("section-trigger").title = name;
+}
+
+// Menu in the header (settings/log out)
+const menuBtn = document.getElementById("btn-menu");
+const appMenu = document.getElementById("app-menu");
+
+function setMenuOpen(open) {
+  appMenu.classList.toggle("hidden", !open);
+  menuBtn.setAttribute("aria-expanded", String(open));
+  if (open) appMenu.querySelector("[role=menuitem]").focus();
+}
+
+menuBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setMenuOpen(appMenu.classList.contains("hidden"));
+});
+document.addEventListener("click", (e) => {
+  if (!appMenu.classList.contains("hidden") && !appMenu.contains(e.target)) setMenuOpen(false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !appMenu.classList.contains("hidden")) {
+    setMenuOpen(false);
+    menuBtn.focus();
+  }
+});
+
 document.getElementById("btn-logout").addEventListener("click", () => {
+  setMenuOpen(false);
   clearToken();
   showLogin();
   createdAfter = null;
   currentSessionId = null;
+  sections = [];
+  updateSectionTrigger();
+  homeEl.sectionCount.textContent = "—";
   document.querySelectorAll(".time-btn").forEach((b) => {
     const isAll = b.dataset.days === "all";
     b.classList.toggle("active", isAll);
@@ -213,7 +298,6 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   });
   document.getElementById("custom-date").classList.add("hidden");
   document.getElementById("custom-date").value = "";
-  document.getElementById("session-filter").innerHTML = "";
 });
 
 // ── Study view ────────────────────────────────────────────────────────────────
@@ -597,10 +681,10 @@ function buildWordItem(word) {
 
 // ── Mode toggle ───────────────────────────────────────────────────────────────
 document.getElementById("mode-toggle").addEventListener("click", (e) => {
-  const btn = e.target.closest(".mode-btn");
+  const btn = e.target.closest(".seg-btn");
   if (!btn) return;
   reverseMode = btn.dataset.mode === "true";
-  document.querySelectorAll(".mode-btn").forEach((b) => {
+  document.querySelectorAll("#mode-toggle .seg-btn").forEach((b) => {
     b.classList.toggle("active", b === btn);
     b.setAttribute("aria-pressed", String(b === btn));
   });
@@ -644,32 +728,155 @@ document.getElementById("custom-date").addEventListener("change", (e) => {
   refreshDueCount();
 });
 
-document.getElementById("session-filter").addEventListener("click", (e) => {
-  const btn = e.target.closest(".session-btn");
-  if (!btn) return;
+// ── Section picker (bottom sheet on mobile, modal on desktop) ────────────────
+const pickerEl = {
+  backdrop: document.getElementById("section-picker-backdrop"),
+  dialog: document.getElementById("section-picker"),
+  search: document.getElementById("section-search"),
+  list: document.getElementById("section-list"),
+  empty: document.getElementById("section-empty"),
+  trigger: document.getElementById("section-trigger"),
+};
+let pickerOptions = []; // [{ id: number | null, name, date? }] currently shown
+let pickerActive = 0; // keyboard-highlighted index into pickerOptions
 
-  document.querySelectorAll(".session-btn").forEach((b) => {
-    b.classList.toggle("active", b === btn);
-    b.setAttribute("aria-pressed", String(b === btn));
+function renderSectionList() {
+  const query = pickerEl.search.value.trim().toLowerCase();
+  const all = { id: null, name: "All sections" };
+  const matches = sections.filter((s) => s.name.toLowerCase().includes(query));
+  pickerOptions = !query || all.name.toLowerCase().includes(query) ? [all, ...matches] : matches;
+
+  const frag = document.createDocumentFragment();
+  pickerOptions.forEach((opt, i) => {
+    const li = document.createElement("li");
+    li.id = `section-opt-${i}`;
+    li.className = "picker-option";
+    li.setAttribute("role", "option");
+    li.dataset.index = String(i);
+    const selected = opt.id === currentSessionId;
+    li.setAttribute("aria-selected", String(selected));
+
+    const check = document.createElement("span");
+    check.className = "picker-check";
+    check.setAttribute("aria-hidden", "true");
+    check.textContent = selected ? "✓" : "";
+    const name = document.createElement("span");
+    name.className = "picker-name";
+    name.textContent = opt.name;
+    name.title = opt.name; // full name on hover when truncated
+    li.append(check, name);
+    if (opt.date) {
+      const date = document.createElement("span");
+      date.className = "picker-date";
+      date.textContent = opt.date;
+      li.append(date);
+    }
+    frag.appendChild(li);
   });
-
-  const sid = btn.dataset.sessionId;
-  currentSessionId = sid === "all" ? null : parseInt(sid, 10);
-  refreshDueCount();
-});
-
-function syncHeisigToggle() {
-  document.querySelectorAll("#heisig-toggle .mode-btn").forEach((b) => {
-    const active = (b.dataset.heisig === "true") === includeHeisig;
-    b.classList.toggle("active", active);
-    b.setAttribute("aria-pressed", String(active));
-  });
+  pickerEl.list.replaceChildren(frag);
+  pickerEl.empty.classList.toggle("hidden", pickerOptions.length > 0);
+  setPickerActive(
+    Math.max(
+      0,
+      pickerOptions.findIndex((o) => o.id === currentSessionId)
+    ),
+    false
+  );
 }
 
-document.getElementById("heisig-toggle").addEventListener("click", (e) => {
-  const btn = e.target.closest(".mode-btn");
-  if (!btn) return;
-  includeHeisig = btn.dataset.heisig === "true";
+function setPickerActive(index, scroll = true) {
+  const items = pickerEl.list.children;
+  if (items.length === 0) {
+    pickerEl.search.removeAttribute("aria-activedescendant");
+    return;
+  }
+  pickerActive = Math.min(Math.max(index, 0), items.length - 1);
+  for (const el of items) el.classList.remove("kbd-active");
+  const el = items[pickerActive];
+  el.classList.add("kbd-active");
+  pickerEl.search.setAttribute("aria-activedescendant", el.id);
+  if (scroll) el.scrollIntoView({ block: "nearest" });
+}
+
+function openSectionPicker() {
+  pickerEl.search.value = "";
+  renderSectionList();
+  pickerEl.backdrop.setAttribute("aria-hidden", "false");
+  pickerEl.backdrop.classList.add("open");
+  const selected = pickerEl.list.children[pickerActive];
+  if (selected) selected.scrollIntoView({ block: "center" });
+  // Only auto-focus the search box where there is a hardware keyboard; on touch
+  // devices it would pop the on-screen keyboard over the list.
+  if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) pickerEl.search.focus();
+  else pickerEl.dialog.focus();
+}
+
+function closeSectionPicker() {
+  pickerEl.backdrop.classList.remove("open");
+  pickerEl.backdrop.setAttribute("aria-hidden", "true");
+  pickerEl.trigger.focus();
+}
+
+function selectSection(index) {
+  const opt = pickerOptions[index];
+  if (!opt) return;
+  const changed = opt.id !== currentSessionId;
+  currentSessionId = opt.id;
+  updateSectionTrigger();
+  closeSectionPicker();
+  if (changed) refreshDueCount();
+}
+
+pickerEl.trigger.addEventListener("click", openSectionPicker);
+document.getElementById("section-picker-close").addEventListener("click", closeSectionPicker);
+pickerEl.backdrop.addEventListener("click", (e) => {
+  if (e.target === pickerEl.backdrop) closeSectionPicker();
+});
+pickerEl.search.addEventListener("input", renderSectionList);
+pickerEl.list.addEventListener("click", (e) => {
+  const li = e.target.closest(".picker-option");
+  if (li) selectSection(Number(li.dataset.index));
+});
+pickerEl.dialog.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeSectionPicker();
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    setPickerActive(pickerActive + 1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    setPickerActive(pickerActive - 1);
+  } else if (e.key === "Enter" && e.target === pickerEl.search) {
+    e.preventDefault();
+    selectSection(pickerActive);
+  } else if (e.key === "Tab") {
+    // Keep focus inside the modal dialog
+    const focusable = [document.getElementById("section-picker-close"), pickerEl.search];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (
+      e.shiftKey &&
+      (document.activeElement === first || document.activeElement === pickerEl.dialog)
+    ) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+});
+
+// ── Heisig setting ────────────────────────────────────────────────────────────
+const heisigSwitch = document.getElementById("heisig-toggle");
+
+function syncHeisigToggle() {
+  heisigSwitch.setAttribute("aria-checked", String(includeHeisig));
+}
+
+heisigSwitch.addEventListener("click", () => {
+  includeHeisig = !includeHeisig;
   try {
     localStorage.setItem(HEISIG_KEY, String(includeHeisig));
   } catch {
