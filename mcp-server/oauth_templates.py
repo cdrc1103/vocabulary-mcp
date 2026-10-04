@@ -34,7 +34,7 @@ def login_template(auth_params_encoded: str, error_html: str = "") -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vocabulary MCP — Sign In</title>
+    <title>Hanyu MCP — Sign In</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -85,7 +85,7 @@ def login_template(auth_params_encoded: str, error_html: str = "") -> str:
 </head>
 <body>
     <div class="card">
-        <h1>Vocabulary MCP</h1>
+        <h1>Hanyu MCP</h1>
         {error_html}
         <form method="POST" action="/authorize/submit">
             <input type="hidden" name="auth_params" value="{auth_params_encoded}">
@@ -130,7 +130,7 @@ def consent_template(client_name: str, scopes: list[str]) -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vocabulary MCP — Authorization Required</title>
+    <title>Hanyu MCP — Authorization Required</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -256,7 +256,7 @@ def authorization_error_template(error: str, error_description: str = "") -> str
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vocabulary MCP — Authorization Error</title>
+    <title>Hanyu MCP — Authorization Error</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

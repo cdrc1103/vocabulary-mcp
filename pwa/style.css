@@ -390,7 +390,7 @@ button { -webkit-tap-highlight-color: transparent; }
   display: flex; flex-direction: column; gap: 1rem; text-align: center;
 }
 .login-card form { display: flex; flex-direction: column; gap: 0.75rem; }
-.login-mascot { width: 160px; height: auto; display: block; margin: 0 auto; }
+.login-mascot { width: 160px; height: auto; display: block; margin: 0 auto; border-radius: 28px; }
 .login-card h1 { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; }
 .login-subtitle { font-size: 0.9375rem; color: var(--text-2); }
 .login-input {

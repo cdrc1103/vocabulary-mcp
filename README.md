@@ -1,4 +1,4 @@
-# Vocabulary App
+# Hanyu MCP
 
 A full-stack spaced-repetition vocabulary study system. An AI assistant can push words directly into your personal study deck via an MCP tool, and you review them on an installable mobile PWA.
 

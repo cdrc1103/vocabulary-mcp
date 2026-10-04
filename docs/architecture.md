@@ -1,4 +1,4 @@
-# Vocabulary App — Architecture & Implementation Guide
+# Hanyu MCP — Architecture & Implementation Guide
 
 ## Overview
 
@@ -13,7 +13,7 @@ A full-stack system that lets Claude push vocabulary words directly into a perso
 ## Repository Structure
 
 ```
-vocab-app/
+hanyu-mcp/
 ├── backend/
 │   ├── main.py               # FastAPI app
 │   ├── database.py           # SQLite setup and queries
@@ -229,7 +229,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   "mcpServers": {
     "vocabulary": {
       "command": "python",
-      "args": ["/absolute/path/to/vocab-app/mcp-server/server.py"],
+      "args": ["/absolute/path/to/hanyu-mcp/mcp-server/server.py"],
       "env": {
         "VOCAB_API_URL": "https://your-app.railway.app",
         "VOCAB_API_KEY": "your-api-key-here"
