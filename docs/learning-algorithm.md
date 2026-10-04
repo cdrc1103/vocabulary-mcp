@@ -103,4 +103,4 @@ The PWA supports two orientations of the same card:
 - **Normal mode** — front: word, back: definition + example
 - **Reverse mode** — front: pinyin, back: hanzi + English translation + example. Cards without pinyin (non-Heisig) fall back to front: definition, back: word + example
 
-Both modes submit identical quality scores to the same SM-2 endpoint; the algorithm is unaffected by which side is shown.
+Both modes use the same SM-2 algorithm and quality scores, but each keeps its own schedule. Normal (forward) progress lives in `interval`, `ease_factor`, `repetitions` and `next_review`; reverse progress lives in the `reverse_`-prefixed columns. The study endpoints take `direction=forward|reverse` (default `forward`), so a reverse review never changes forward progress and vice versa. A card never reviewed in reverse is treated as due, so every existing card starts with a fresh reverse schedule.

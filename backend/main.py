@@ -7,6 +7,7 @@ CORS support, and health checks.
 
 import sqlite3
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
 from database.general import (
@@ -37,6 +38,8 @@ from models.general import (
     VocabularyUpdate,
 )
 from models.heisig import HanziBulkUpsert
+
+Direction = Literal["forward", "reverse"]
 
 
 @asynccontextmanager
@@ -174,6 +177,7 @@ def list_vocabulary(
 def due_vocabulary(
     created_after: str | None = Query(None),
     session_id: int | None = Query(None),
+    direction: Direction = Query("forward"),
 ):
     """Get words due for review (next_review <= now), optionally filtered.
 
@@ -181,31 +185,35 @@ def due_vocabulary(
         created_after: Optional ISO date string (YYYY-MM-DD). Filters to words
             created on or after this date.
         session_id: Optional session ID filter. Stacks AND with created_after.
+        direction: "forward" (default) or "reverse". Each direction has its own
+            SM-2 schedule; the returned SM-2 fields belong to that direction.
 
     Returns:
         List of VocabularyResponse objects ready for study.
     """
     return [
         VocabularyResponse.from_row(w)
-        for w in get_due_words(created_after=created_after, session_id=session_id)
+        for w in get_due_words(created_after=created_after, session_id=session_id, direction=direction)
     ]
 
 
 @app.patch("/vocabulary/{word_id}/review", response_model=VocabularyResponse)
-def submit_review(word_id: int, payload: ReviewRequest):
+def submit_review(word_id: int, payload: ReviewRequest, direction: Direction = Query("forward")):
     """Submit a review for a word and update SM-2 state.
 
     Args:
         word_id: ID of the word being reviewed.
         payload: ReviewRequest with quality score (0-5).
+        direction: "forward" (default) or "reverse". Only that direction's SM-2
+            state is updated.
 
     Returns:
-        Updated VocabularyResponse.
+        Updated VocabularyResponse (SM-2 fields reflect the reviewed direction).
 
     Raises:
         HTTPException: 404 if word_id not found.
     """
-    result = review_word(word_id=word_id, quality=payload.quality)
+    result = review_word(word_id=word_id, quality=payload.quality, direction=direction)
     if result is None:
         raise HTTPException(status_code=404, detail="Word not found")
     return VocabularyResponse.from_row(result)

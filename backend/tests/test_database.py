@@ -144,6 +144,26 @@ class TestReviewWord:
         assert result["repetitions"] == 0
         assert result["interval"] == 1
 
+    def test_reverse_review_does_not_touch_forward_state(self):
+        """Reverse reviews write to the reverse_* columns only."""
+        w = db.insert_word("merci", "thank you", None, "French")
+        db.review_word(w["id"], quality=5)
+        before = db.get_words(language=None, limit=10, offset=0)["words"][0]
+
+        result = db.review_word(w["id"], quality=1, direction="reverse")
+        after = db.get_words(language=None, limit=10, offset=0)["words"][0]
+
+        assert result["repetitions"] == 0
+        for key in ("interval", "ease_factor", "repetitions", "next_review"):
+            assert after[key] == before[key]
+        assert after["reverse_next_review"] is not None
+
+    def test_unknown_direction_raises(self):
+        """An unknown direction is a programming error, not silently forward."""
+        w = db.insert_word("oui", "yes", None, "French")
+        with pytest.raises(ValueError):
+            db.review_word(w["id"], quality=4, direction="sideways")
+
     def test_not_found_returns_none(self):
         """Test review_word returns None for non-existent word."""
         result = db.review_word(word_id=9999, quality=4)
