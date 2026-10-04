@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Vocabulary API", lifespan=lifespan)
+app = FastAPI(title="Hanyu MCP API", lifespan=lifespan)
 
 # APIKeyMiddleware must be added first so CORSMiddleware is outermost.
 # Starlette executes middleware LIFO, so the last add_middleware call runs first.

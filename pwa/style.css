@@ -95,7 +95,6 @@ button { -webkit-tap-highlight-color: transparent; }
   padding: env(safe-area-inset-top) max(1rem, env(safe-area-inset-right)) 0
     max(1rem, env(safe-area-inset-left));
   background: var(--header-bg);
-  border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
 }
 .app-header h1,
@@ -390,7 +389,7 @@ button { -webkit-tap-highlight-color: transparent; }
   display: flex; flex-direction: column; gap: 1rem; text-align: center;
 }
 .login-card form { display: flex; flex-direction: column; gap: 0.75rem; }
-.login-mascot { width: 160px; height: auto; display: block; margin: 0 auto; }
+.login-mascot { width: 160px; height: auto; display: block; margin: 0 auto; border-radius: 28px; }
 .login-card h1 { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; }
 .login-subtitle { font-size: 0.9375rem; color: var(--text-2); }
 .login-input {

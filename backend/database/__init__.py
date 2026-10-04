@@ -1,4 +1,4 @@
-"""Vocabulary API database package.
+"""Hanyu MCP API database package.
 
 General-purpose database operations live in database.general.
 Heisig hanzi-specific database operations live in database.heisig.
