@@ -95,7 +95,6 @@ button { -webkit-tap-highlight-color: transparent; }
   padding: env(safe-area-inset-top) max(1rem, env(safe-area-inset-right)) 0
     max(1rem, env(safe-area-inset-left));
   background: var(--header-bg);
-  border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
 }
 .app-header h1,
