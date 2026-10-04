@@ -113,13 +113,14 @@ def add_vocabulary(payload: VocabularyCreate):
     """Create and store a new vocabulary word.
 
     Args:
-        payload: VocabularyCreate with word, definition, example, language, session_name.
+        payload: VocabularyCreate with word, pinyin, definition, example, language, session_name.
 
     Returns:
         VocabularyResponse with id, timestamps, SM-2 state, and session info.
     """
     word = insert_word(
         word=payload.word,
+        pinyin=payload.pinyin,
         definition=payload.definition,
         example=payload.example,
         language=payload.language,

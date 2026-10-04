@@ -25,7 +25,7 @@ def _fresh_db(tmp_db):
 class TestInsertWord:
     def test_returns_dict_with_all_fields(self):
         """Test insert_word returns dictionary with all expected fields."""
-        result = db.insert_word("bonjour", "hello", "Bonjour, monde!", "French")
+        result = db.insert_word("bonjour", "pīnyīn", "hello", "Bonjour, monde!", "French")
         assert result["word"] == "bonjour"
         assert result["definition"] == "hello"
         assert result["example"] == "Bonjour, monde!"
@@ -37,18 +37,23 @@ class TestInsertWord:
 
     def test_next_review_is_today(self):
         """Test that newly inserted word has next_review set to today."""
-        result = db.insert_word("ciao", "bye", None, "Italian")
+        result = db.insert_word("ciao", "pīnyīn", "bye", None, "Italian")
         assert result["next_review"] == date.today().isoformat()
 
     def test_example_can_be_none(self):
         """Test that example field can be None/optional."""
-        result = db.insert_word("hola", "hi", None, "Spanish")
+        result = db.insert_word("hola", "pīnyīn", "hi", None, "Spanish")
         assert result["example"] is None
+
+    def test_pinyin_is_persisted(self):
+        """Pinyin is stored in its own column and returned on read."""
+        db.insert_word("变化", "biànhuà", "change", None, "Chinese")
+        assert db.get_words(language=None, limit=10, offset=0)["words"][0]["pinyin"] == "biànhuà"
 
     def test_ids_are_unique(self):
         """Test that each inserted word receives a unique ID."""
-        r1 = db.insert_word("a", "a", None, "en")
-        r2 = db.insert_word("b", "b", None, "en")
+        r1 = db.insert_word("a", "pīnyīn", "a", None, "en")
+        r2 = db.insert_word("b", "pīnyīn", "b", None, "en")
         assert r1["id"] != r2["id"]
 
 
@@ -61,15 +66,15 @@ class TestGetWords:
 
     def test_returns_inserted_words(self):
         """Test get_words returns previously inserted vocabulary words."""
-        db.insert_word("chat", "cat", None, "French")
-        db.insert_word("chien", "dog", None, "French")
+        db.insert_word("chat", "pīnyīn", "cat", None, "French")
+        db.insert_word("chien", "pīnyīn", "dog", None, "French")
         result = db.get_words(language=None, limit=100, offset=0)
         assert result["total"] == 2
 
     def test_language_filter(self):
         """Test get_words filters by language parameter."""
-        db.insert_word("chat", "cat", None, "French")
-        db.insert_word("gato", "cat", None, "Spanish")
+        db.insert_word("chat", "pīnyīn", "cat", None, "French")
+        db.insert_word("gato", "pīnyīn", "cat", None, "Spanish")
         fr = db.get_words(language="French", limit=100, offset=0)
         assert fr["total"] == 1
         assert fr["words"][0]["word"] == "chat"
@@ -77,7 +82,7 @@ class TestGetWords:
     def test_pagination_limit(self):
         """Test get_words respects limit parameter for result size."""
         for i in range(5):
-            db.insert_word(f"word{i}", "def", None, "en")
+            db.insert_word(f"word{i}", "pīnyīn", "def", None, "en")
         result = db.get_words(language=None, limit=2, offset=0)
         assert len(result["words"]) == 2
         assert result["total"] == 5
@@ -85,7 +90,7 @@ class TestGetWords:
     def test_pagination_offset(self):
         """Test get_words respects offset parameter for pagination."""
         for i in range(5):
-            db.insert_word(f"word{i}", "def", None, "en")
+            db.insert_word(f"word{i}", "pīnyīn", "def", None, "en")
         result = db.get_words(language=None, limit=10, offset=3)
         assert len(result["words"]) == 2
 
@@ -93,13 +98,13 @@ class TestGetWords:
 class TestGetDueWords:
     def test_returns_word_due_today(self):
         """Test get_due_words returns words scheduled for review today."""
-        db.insert_word("aujourd'hui", "today", None, "French")
+        db.insert_word("aujourd'hui", "pīnyīn", "today", None, "French")
         due = db.get_due_words()
         assert len(due) == 1
 
     def test_excludes_future_words(self):
         """Test get_due_words excludes words scheduled for future dates."""
-        w = db.insert_word("demain", "tomorrow", None, "French")
+        w = db.insert_word("demain", "pīnyīn", "tomorrow", None, "French")
         # Manually push next_review to tomorrow
         future = (date.today() + timedelta(days=1)).isoformat()
         import sqlite3
@@ -113,7 +118,7 @@ class TestGetDueWords:
 
     def test_includes_overdue_words(self):
         """Test get_due_words includes words past their review date."""
-        w = db.insert_word("hier", "yesterday", None, "French")
+        w = db.insert_word("hier", "pīnyīn", "yesterday", None, "French")
         past = (date.today() - timedelta(days=5)).isoformat()
         import sqlite3
 
@@ -128,7 +133,7 @@ class TestGetDueWords:
 class TestReviewWord:
     def test_passing_review_advances_schedule(self):
         """Test review_word with good quality advances SM-2 schedule."""
-        w = db.insert_word("merci", "thank you", None, "French")
+        w = db.insert_word("merci", "pīnyīn", "thank you", None, "French")
         result = db.review_word(w["id"], quality=4)
         assert result is not None
         assert result["repetitions"] == 1
@@ -137,7 +142,7 @@ class TestReviewWord:
     def test_failing_review_resets_schedule(self):
         """Test review_word with low quality resets SM-2 schedule."""
         # First pass a review to advance state
-        w = db.insert_word("oui", "yes", None, "French")
+        w = db.insert_word("oui", "pīnyīn", "yes", None, "French")
         db.review_word(w["id"], quality=5)
         # Now fail it
         result = db.review_word(w["id"], quality=1)
@@ -154,9 +159,10 @@ class TestInsertWordsBulk:
     def test_inserts_multiple_words(self):
         """Test insert_words_bulk creates multiple words in single operation."""
         words = [
-            {"word": "bonjour", "definition": "hello", "example": None, "language": "French"},
+            {"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello", "example": None, "language": "French"},
             {
                 "word": "merci",
+                "pinyin": "pīnyīn",
                 "definition": "thanks",
                 "example": "Merci beaucoup.",
                 "language": "French",
@@ -170,10 +176,10 @@ class TestInsertWordsBulk:
 
     def test_skips_duplicates(self):
         """Test insert_words_bulk skips words that already exist."""
-        db.insert_word("bonjour", "hello", None, "French")
+        db.insert_word("bonjour", "pīnyīn", "hello", None, "French")
         words = [
-            {"word": "bonjour", "definition": "hello again", "example": None, "language": "French"},
-            {"word": "merci", "definition": "thanks", "example": None, "language": "French"},
+            {"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello again", "example": None, "language": "French"},
+            {"word": "merci", "pinyin": "pīnyīn", "definition": "thanks", "example": None, "language": "French"},
         ]
         result = db.insert_words_bulk(words)
         assert len(result["inserted"]) == 1
@@ -183,8 +189,8 @@ class TestInsertWordsBulk:
     def test_skips_intra_batch_duplicates(self):
         """Test insert_words_bulk skips duplicates within the batch."""
         words = [
-            {"word": "oui", "definition": "yes", "example": None, "language": "French"},
-            {"word": "oui", "definition": "yes again", "example": None, "language": "French"},
+            {"word": "oui", "pinyin": "pīnyīn", "definition": "yes", "example": None, "language": "French"},
+            {"word": "oui", "pinyin": "pīnyīn", "definition": "yes again", "example": None, "language": "French"},
         ]
         result = db.insert_words_bulk(words)
         assert len(result["inserted"]) == 1
@@ -198,8 +204,8 @@ class TestInsertWordsBulk:
     def test_same_word_different_language_both_inserted(self):
         """Test insert_words_bulk allows same word with different languages."""
         words = [
-            {"word": "chat", "definition": "cat", "example": None, "language": "French"},
-            {"word": "chat", "definition": "to chat", "example": None, "language": "English"},
+            {"word": "chat", "pinyin": "pīnyīn", "definition": "cat", "example": None, "language": "French"},
+            {"word": "chat", "pinyin": "pīnyīn", "definition": "to chat", "example": None, "language": "English"},
         ]
         result = db.insert_words_bulk(words)
         assert len(result["inserted"]) == 2
@@ -207,7 +213,7 @@ class TestInsertWordsBulk:
 
     def test_inserted_words_have_correct_defaults(self):
         """Test bulk inserted words have correct SM-2 defaults."""
-        words = [{"word": "salut", "definition": "hi", "example": None, "language": "French"}]
+        words = [{"word": "salut", "pinyin": "pīnyīn", "definition": "hi", "example": None, "language": "French"}]
         result = db.insert_words_bulk(words)
         row = result["inserted"][0]
         assert isinstance(row["id"], int)
@@ -221,7 +227,7 @@ class TestInsertWordsBulk:
 class TestDeleteWord:
     def test_deletes_existing_word(self):
         """Test delete_word removes word from database."""
-        w = db.insert_word("au revoir", "goodbye", None, "French")
+        w = db.insert_word("au revoir", "pīnyīn", "goodbye", None, "French")
         assert db.delete_word(w["id"]) is True
         # Confirm gone
         result = db.get_words(language=None, limit=100, offset=0)
@@ -235,21 +241,21 @@ class TestDeleteWord:
 class TestGetDueWordsWithCreatedAfter:
     def test_includes_word_created_today(self):
         """Words created today are included when created_after is today."""
-        db.insert_word("bonjour", "hello", None, "French")
+        db.insert_word("bonjour", "pīnyīn", "hello", None, "French")
         today = date.today().isoformat()
         due = db.get_due_words(created_after=today)
         assert len(due) == 1
 
     def test_excludes_word_when_filter_is_tomorrow(self):
         """Words created today are excluded when created_after is tomorrow."""
-        db.insert_word("bonjour", "hello", None, "French")
+        db.insert_word("bonjour", "pīnyīn", "hello", None, "French")
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         due = db.get_due_words(created_after=tomorrow)
         assert len(due) == 0
 
     def test_no_filter_returns_all_due(self):
         """Calling get_due_words() with no argument preserves existing behaviour."""
-        db.insert_word("bonjour", "hello", None, "French")
+        db.insert_word("bonjour", "pīnyīn", "hello", None, "French")
         due = db.get_due_words()
         assert len(due) == 1
 
@@ -291,27 +297,27 @@ class TestSessions:
 
     def test_insert_word_with_session_name(self):
         """Test insert_word assigns word to named session."""
-        word = db.insert_word("bonjour", "hello", None, "fr", session_name="French 1")
+        word = db.insert_word("bonjour", "pīnyīn", "hello", None, "fr", session_name="French 1")
         assert word["session_name"] == "French 1"
         assert isinstance(word["session_id"], int)
 
     def test_insert_word_defaults_to_misc(self):
         """Test insert_word assigns to misc when no session_name given."""
-        word = db.insert_word("hola", "hello", None, "es")
+        word = db.insert_word("hola", "pīnyīn", "hello", None, "es")
         assert word["session_name"] == "misc"
 
     def test_get_words_filtered_by_session_id(self):
         """Test get_words returns only words in the given session."""
         s = db.get_or_create_session("Spanish 1", "2026-06-20")
-        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
-        db.insert_word("adiós", "goodbye", None, "es")  # goes to misc
+        db.insert_word("hola", "pīnyīn", "hello", None, "es", session_name="Spanish 1")
+        db.insert_word("adiós", "pīnyīn", "goodbye", None, "es")  # goes to misc
         result = db.get_words(language=None, limit=100, offset=0, session_id=s["id"])
         assert result["total"] == 1
         assert result["words"][0]["word"] == "hola"
 
     def test_get_words_includes_session_name(self):
         """Test get_words includes session_name in each word dict."""
-        db.insert_word("ciao", "hi", None, "it", session_name="Italian 1")
+        db.insert_word("ciao", "pīnyīn", "hi", None, "it", session_name="Italian 1")
         result = db.get_words(language=None, limit=100, offset=0)
         words_by_name = {w["word"]: w for w in result["words"]}
         assert words_by_name["ciao"]["session_name"] == "Italian 1"
@@ -319,8 +325,8 @@ class TestSessions:
     def test_get_due_words_filtered_by_session_id(self):
         """Test get_due_words returns only words in the given session."""
         s = db.get_or_create_session("French 1", "2026-06-20")
-        db.insert_word("bonjour", "hello", None, "fr", session_name="French 1")
-        db.insert_word("au revoir", "goodbye", None, "fr")  # misc
+        db.insert_word("bonjour", "pīnyīn", "hello", None, "fr", session_name="French 1")
+        db.insert_word("au revoir", "pīnyīn", "goodbye", None, "fr")  # misc
         due = db.get_due_words(session_id=s["id"])
         words = [w["word"] for w in due]
         assert "bonjour" in words
@@ -328,7 +334,7 @@ class TestSessions:
 
     def test_get_due_words_includes_session_name(self):
         """Test get_due_words includes session_name in each word dict."""
-        db.insert_word("merci", "thank you", None, "fr", session_name="French 1")
+        db.insert_word("merci", "pīnyīn", "thank you", None, "fr", session_name="French 1")
         due = db.get_due_words()
         word = next(w for w in due if w["word"] == "merci")
         assert word["session_name"] == "French 1"
@@ -369,8 +375,8 @@ class TestSessions:
         """Test insert_words_bulk assigns session to all words."""
         result = db.insert_words_bulk(
             [
-                {"word": "x", "definition": "x", "language": "en", "session_name": "Session A"},
-                {"word": "y", "definition": "y", "language": "en", "session_name": "Session A"},
+                {"word": "x", "pinyin": "pīnyīn", "definition": "x", "language": "en", "session_name": "Session A"},
+                {"word": "y", "pinyin": "pīnyīn", "definition": "y", "language": "en", "session_name": "Session A"},
             ]
         )
         assert len(result["inserted"]) == 2
@@ -380,8 +386,8 @@ class TestSessions:
         """Test insert_words_bulk handles words with different session names."""
         result = db.insert_words_bulk(
             [
-                {"word": "x", "definition": "x", "language": "en", "session_name": "Sess A"},
-                {"word": "y", "definition": "y", "language": "en", "session_name": "Sess B"},
+                {"word": "x", "pinyin": "pīnyīn", "definition": "x", "language": "en", "session_name": "Sess A"},
+                {"word": "y", "pinyin": "pīnyīn", "definition": "y", "language": "en", "session_name": "Sess B"},
             ]
         )
         inserted_by_word = {w["word"]: w for w in result["inserted"]}
@@ -392,8 +398,8 @@ class TestSessions:
 class TestDeleteWordsBySession:
     def test_returns_word_count_when_session_has_words(self):
         """Test delete_words_by_session returns count of deleted words."""
-        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
-        db.insert_word("adios", "goodbye", None, "es", session_name="Spanish 1")
+        db.insert_word("hola", "pīnyīn", "hello", None, "es", session_name="Spanish 1")
+        db.insert_word("adios", "pīnyīn", "goodbye", None, "es", session_name="Spanish 1")
         session = db.get_or_create_session("Spanish 1")
         result = db.delete_words_by_session(session["id"])
         assert result == 2
@@ -411,7 +417,7 @@ class TestDeleteWordsBySession:
 
     def test_words_are_removed_after_delete(self):
         """Test vocabulary words no longer exist after session delete."""
-        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
+        db.insert_word("hola", "pīnyīn", "hello", None, "es", session_name="Spanish 1")
         session = db.get_or_create_session("Spanish 1")
         db.delete_words_by_session(session["id"])
         words = db.get_words(language=None, limit=100, offset=0)["words"]
@@ -426,8 +432,8 @@ class TestDeleteWordsBySession:
 
     def test_only_deletes_words_in_target_session(self):
         """Test words in other sessions are unaffected by delete."""
-        db.insert_word("hola", "hello", None, "es", session_name="Spanish 1")
-        db.insert_word("bonjour", "hello", None, "fr", session_name="French 1")
+        db.insert_word("hola", "pīnyīn", "hello", None, "es", session_name="Spanish 1")
+        db.insert_word("bonjour", "pīnyīn", "hello", None, "fr", session_name="French 1")
         spanish = db.get_or_create_session("Spanish 1")
         db.delete_words_by_session(spanish["id"])
         words = db.get_words(language=None, limit=100, offset=0)["words"]
@@ -447,14 +453,14 @@ class TestUpsertHanzi:
 
     def test_matches_existing_by_word_regardless_of_language(self, tmp_db):
         """Enrich hits a legacy card stored under a different language."""
-        legacy = db.insert_word("忙", "máng — busy", None, "unknown")
+        legacy = db.insert_word("忙", "pīnyīn", "máng — busy", None, "unknown")
         res = db_h.upsert_hanzi("忙", "busy", "máng", 2)
         assert res["status"] == "enriched"
         assert res["card"]["id"] == legacy["id"]
 
     def test_enrich_preserves_sm2_and_definition(self, tmp_db):
         """Enrich never changes SM-2 fields or the existing definition."""
-        legacy = db.insert_word("重", "zhòng — heavy; weight", "你多重?", "Chinese")
+        legacy = db.insert_word("重", "pīnyīn", "zhòng — heavy; weight", "你多重?", "Chinese")
         db.review_word(legacy["id"], 5)  # advance SM-2 away from defaults
         before = db.get_words(language=None, limit=100, offset=0)["words"]
         before_card = next(c for c in before if c["id"] == legacy["id"])
@@ -474,6 +480,6 @@ class TestUpsertHanzi:
 
     def test_session_preserved_on_enrich(self, tmp_db):
         """session_name applies only to new cards; enrich keeps the existing session."""
-        db.insert_word("好", "hǎo — good", None, "Chinese", session_name="Old Session")
+        db.insert_word("好", "pīnyīn", "hǎo — good", None, "Chinese", session_name="Old Session")
         res = db_h.upsert_hanzi("好", "good", "hǎo", 3, session_name="New Session")
         assert res["card"]["session_name"] == "Old Session"

@@ -328,14 +328,14 @@ function showCard() {
 // Reverse: front pinyin only, back hanzi + English translation + example.
 // Cards with no recoverable pinyin fall back to definition on the front and
 // the word on the back.
-// Split a card into its pinyin and English parts. Heisig cards carry pinyin in
-// their own field; regular cards store "pinyin | english" in the definition.
-// Returns pinyin: "" when the card has no pinyin to show.
+// Split a card into its pinyin and English parts. New cards carry pinyin in a
+// dedicated field (card.pinyin; Heisig cards also in heisig.pinyin). Legacy
+// regular cards stored "pinyin | english" in the definition, so that is kept as
+// a backup. Returns pinyin: "" when the card has no pinyin to show.
 function splitPinyin(card) {
   const definition = card.definition || "";
-  if (card.heisig && card.heisig.pinyin) {
-    return { pinyin: card.heisig.pinyin, english: definition };
-  }
+  const stored = card.pinyin || (card.heisig && card.heisig.pinyin);
+  if (stored) return { pinyin: stored, english: definition };
   const sep = definition.indexOf(" | ");
   if (sep === -1) return { pinyin: "", english: definition };
   return {

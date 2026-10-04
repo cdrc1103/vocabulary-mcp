@@ -14,6 +14,7 @@ from tests.conftest import AUTH_HEADERS, TEST_API_KEY, TEST_PASSWORD
 
 WORD_PAYLOAD = {
     "word": "bonjour",
+    "pinyin": "pīnyīn",
     "definition": "hello",
     "example": "Bonjour, monde!",
     "language": "French",
@@ -154,11 +155,53 @@ class TestAddVocabulary:
         r = client.post("/vocabulary", json={"word": "oops"}, headers=AUTH_HEADERS)
         assert r.status_code == 422
 
+    def test_missing_pinyin_returns_422(self, client):
+        """New words must carry pinyin in its own field."""
+        r = client.post(
+            "/vocabulary",
+            json={"word": "变化", "definition": "change"},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 422
+
+    def test_empty_pinyin_returns_422(self, client):
+        """Test that a blank pinyin is rejected rather than stored."""
+        r = client.post(
+            "/vocabulary",
+            json={"word": "变化", "pinyin": "", "definition": "change"},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 422
+
+    def test_pinyin_stored_and_returned_separately(self, client):
+        """Pinyin round-trips as its own field and stays out of the definition."""
+        r = client.post(
+            "/vocabulary",
+            json={"word": "变化", "pinyin": "biànhuà", "definition": "change (n.)"},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["pinyin"] == "biànhuà"
+        assert body["definition"] == "change (n.)"
+        assert body["heisig"] is None
+        listed = client.get("/vocabulary", headers=AUTH_HEADERS).json()["words"]
+        assert listed[0]["pinyin"] == "biànhuà"
+
+    def test_bulk_requires_pinyin(self, client):
+        """A bulk request with any word missing pinyin is rejected as a whole."""
+        r = client.post(
+            "/vocabulary/bulk",
+            json={"words": [{"word": "变化", "definition": "change"}]},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 422
+
     def test_optional_example_defaults_to_none(self, client):
         """Test that example field defaults to None when not provided."""
         r = client.post(
             "/vocabulary",
-            json={"word": "ciao", "definition": "bye"},
+            json={"word": "ciao", "pinyin": "pīnyīn", "definition": "bye"},
             headers=AUTH_HEADERS,
         )
         assert r.status_code == 201
@@ -168,7 +211,7 @@ class TestAddVocabulary:
         """Test that language field defaults to 'unknown' when not provided."""
         r = client.post(
             "/vocabulary",
-            json={"word": "hi", "definition": "greeting"},
+            json={"word": "hi", "pinyin": "pīnyīn", "definition": "greeting"},
             headers=AUTH_HEADERS,
         )
         assert r.json()["language"] == "unknown"
@@ -197,7 +240,7 @@ class TestListVocabulary:
         client.post("/vocabulary", json=WORD_PAYLOAD, headers=AUTH_HEADERS)
         client.post(
             "/vocabulary",
-            json={"word": "hola", "definition": "hi", "language": "Spanish"},
+            json={"word": "hola", "pinyin": "pīnyīn", "definition": "hi", "language": "Spanish"},
             headers=AUTH_HEADERS,
         )
         r = client.get("/vocabulary?language=French", headers=AUTH_HEADERS)
@@ -210,7 +253,7 @@ class TestListVocabulary:
         for i in range(5):
             client.post(
                 "/vocabulary",
-                json={"word": f"w{i}", "definition": "d"},
+                json={"word": f"w{i}", "pinyin": "pīnyīn", "definition": "d"},
                 headers=AUTH_HEADERS,
             )
         r = client.get("/vocabulary?limit=2&offset=0", headers=AUTH_HEADERS)
@@ -304,14 +347,15 @@ class TestSubmitReview:
 
 BULK_PAYLOAD = {
     "words": [
-        {"word": "bonjour", "definition": "hello", "language": "French"},
+        {"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello", "language": "French"},
         {
             "word": "merci",
+            "pinyin": "pīnyīn",
             "definition": "thanks",
             "example": "Merci beaucoup.",
             "language": "French",
         },
-        {"word": "oui", "definition": "yes", "language": "French"},
+        {"word": "oui", "pinyin": "pīnyīn", "definition": "yes", "language": "French"},
     ]
 }
 
@@ -334,7 +378,7 @@ class TestBulkAddVocabulary:
         """Test bulk operation skips words that already exist in database."""
         client.post(
             "/vocabulary",
-            json={"word": "bonjour", "definition": "hello", "language": "French"},
+            json={"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello", "language": "French"},
             headers=AUTH_HEADERS,
         )
         r = client.post("/vocabulary/bulk", json=BULK_PAYLOAD, headers=AUTH_HEADERS)
@@ -350,7 +394,7 @@ class TestBulkAddVocabulary:
 
     def test_bulk_over_50_returns_422(self, client):
         """Test bulk endpoint returns 422 when word count exceeds 50."""
-        words = [{"word": f"w{i}", "definition": "d"} for i in range(51)]
+        words = [{"word": f"w{i}", "pinyin": "pīnyīn", "definition": "d"} for i in range(51)]
         r = client.post("/vocabulary/bulk", json={"words": words}, headers=AUTH_HEADERS)
         assert r.status_code == 422
 
@@ -425,6 +469,7 @@ class TestListSessions:
             "/vocabulary",
             json={
                 "word": "bonjour",
+                "pinyin": "pīnyīn",
                 "definition": "hello",
                 "language": "fr",
                 "session_name": "French 101",
@@ -461,7 +506,7 @@ class TestAddVocabularyWithSession:
         """Test POST /vocabulary accepts optional session_name."""
         r = client.post(
             "/vocabulary",
-            json={"word": "hola", "definition": "hello", "session_name": "Spanish 1"},
+            json={"word": "hola", "pinyin": "pīnyīn", "definition": "hello", "session_name": "Spanish 1"},
             headers=AUTH_HEADERS,
         )
         assert r.status_code == 201
@@ -472,7 +517,7 @@ class TestAddVocabularyWithSession:
     def test_no_session_name_defaults_to_misc(self, client):
         """Test POST /vocabulary without session_name assigns to misc."""
         r = client.post(
-            "/vocabulary", json={"word": "ciao", "definition": "hi"}, headers=AUTH_HEADERS
+            "/vocabulary", json={"word": "ciao", "pinyin": "pīnyīn", "definition": "hi"}, headers=AUTH_HEADERS
         )
         assert r.status_code == 201
         assert r.json()["session_name"] == "misc"
@@ -488,12 +533,12 @@ class TestListVocabularySessionFilter:
         """Test GET /vocabulary?session_id= returns only words in that session."""
         client.post(
             "/vocabulary",
-            json={"word": "hola", "definition": "hello", "session_name": "Spanish 1"},
+            json={"word": "hola", "pinyin": "pīnyīn", "definition": "hello", "session_name": "Spanish 1"},
             headers=AUTH_HEADERS,
         )
         client.post(
             "/vocabulary",
-            json={"word": "bonjour", "definition": "hello", "session_name": "French 1"},
+            json={"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello", "session_name": "French 1"},
             headers=AUTH_HEADERS,
         )
         sessions_r = client.get("/sessions", headers=AUTH_HEADERS)
@@ -516,12 +561,12 @@ class TestDueVocabularySessionFilter:
         """Test GET /vocabulary/due?session_id= returns only due words in that session."""
         client.post(
             "/vocabulary",
-            json={"word": "hola", "definition": "hello", "session_name": "Spanish 1"},
+            json={"word": "hola", "pinyin": "pīnyīn", "definition": "hello", "session_name": "Spanish 1"},
             headers=AUTH_HEADERS,
         )
         client.post(
             "/vocabulary",
-            json={"word": "bonjour", "definition": "hello", "session_name": "French 1"},
+            json={"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello", "session_name": "French 1"},
             headers=AUTH_HEADERS,
         )
         sessions_r = client.get("/sessions", headers=AUTH_HEADERS)
@@ -547,7 +592,7 @@ class TestUpdateVocabulary:
         """Helper to insert a vocabulary word and return its id."""
         r = client.post(
             "/vocabulary",
-            json={"word": word, "definition": definition, "language": language},
+            json={"word": word, "pinyin": "pīnyīn", "definition": definition, "language": language},
             headers=AUTH_HEADERS,
         )
         return r.json()["id"]
@@ -557,7 +602,7 @@ class TestUpdateVocabulary:
         wid = self._add_word(client)
         r = client.patch(
             f"/vocabulary/{wid}",
-            json={"word": "salut", "definition": "hi there", "example": "Salut!"},
+            json={"word": "salut", "pinyin": "pīnyīn", "definition": "hi there", "example": "Salut!"},
             headers=AUTH_HEADERS,
         )
         assert r.status_code == 200
@@ -574,7 +619,7 @@ class TestUpdateVocabulary:
 
         r = client.patch(
             f"/vocabulary/{wid}",
-            json={"word": "salut", "definition": "hi", "example": None},
+            json={"word": "salut", "pinyin": "pīnyīn", "definition": "hi", "example": None},
             headers=AUTH_HEADERS,
         )
         assert r.status_code == 200
@@ -588,7 +633,7 @@ class TestUpdateVocabulary:
         """Test PATCH /vocabulary/{id} with unknown id returns 404."""
         r = client.patch(
             "/vocabulary/9999",
-            json={"word": "x", "definition": "y", "example": None},
+            json={"word": "x", "pinyin": "pīnyīn", "definition": "y", "example": None},
             headers=AUTH_HEADERS,
         )
         assert r.status_code == 404
@@ -599,7 +644,7 @@ class TestUpdateVocabulary:
         wid2 = self._add_word(client, word="merci", language="French")
         r = client.patch(
             f"/vocabulary/{wid2}",
-            json={"word": "bonjour", "definition": "thanks", "example": None},
+            json={"word": "bonjour", "pinyin": "pīnyīn", "definition": "thanks", "example": None},
             headers=AUTH_HEADERS,
         )
         assert r.status_code == 409
@@ -609,12 +654,12 @@ class TestUpdateVocabulary:
         wid = self._add_word(client)
         client.patch(
             f"/vocabulary/{wid}",
-            json={"word": "bonjour", "definition": "hello", "example": "Bonjour!"},
+            json={"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello", "example": "Bonjour!"},
             headers=AUTH_HEADERS,
         )
         r = client.patch(
             f"/vocabulary/{wid}",
-            json={"word": "bonjour", "definition": "hello", "example": None},
+            json={"word": "bonjour", "pinyin": "pīnyīn", "definition": "hello", "example": None},
             headers=AUTH_HEADERS,
         )
         assert r.status_code == 200
@@ -625,7 +670,7 @@ class TestUpdateVocabulary:
         wid = self._add_word(client)
         r = client.patch(
             f"/vocabulary/{wid}",
-            json={"word": "x", "definition": "y", "example": None},
+            json={"word": "x", "pinyin": "pīnyīn", "definition": "y", "example": None},
         )
         assert r.status_code == 401
 
@@ -663,7 +708,7 @@ class TestDeleteVocabularySession:
         sid = self._create_session_with_words(
             client,
             "Spanish 1",
-            [{"word": "hola", "definition": "hi"}, {"word": "adios", "definition": "bye"}],
+            [{"word": "hola", "pinyin": "pīnyīn", "definition": "hi"}, {"word": "adios", "pinyin": "pīnyīn", "definition": "bye"}],
         )
         r = client.delete(f"/vocabulary/session/{sid}", headers=AUTH_HEADERS)
         assert r.status_code == 200
@@ -673,7 +718,7 @@ class TestDeleteVocabularySession:
         """Test DELETE returns deleted_words=0 when session has no words."""
         r = client.post(
             "/vocabulary",
-            json={"word": "hola", "definition": "hi", "session_name": "Empty Session"},
+            json={"word": "hola", "pinyin": "pīnyīn", "definition": "hi", "session_name": "Empty Session"},
             headers=AUTH_HEADERS,
         )
         wid = r.json()["id"]
@@ -692,7 +737,7 @@ class TestDeleteVocabularySession:
     def test_words_absent_from_vocabulary_after_delete(self, client):
         """Test words no longer appear in GET /vocabulary after session delete."""
         sid = self._create_session_with_words(
-            client, "Spanish 1", [{"word": "hola", "definition": "hi"}]
+            client, "Spanish 1", [{"word": "hola", "pinyin": "pīnyīn", "definition": "hi"}]
         )
         client.delete(f"/vocabulary/session/{sid}", headers=AUTH_HEADERS)
         words = client.get("/vocabulary", headers=AUTH_HEADERS).json()["words"]
@@ -701,7 +746,7 @@ class TestDeleteVocabularySession:
     def test_session_absent_from_sessions_after_delete(self, client):
         """Test session no longer appears in GET /sessions after delete."""
         sid = self._create_session_with_words(
-            client, "Spanish 1", [{"word": "hola", "definition": "hi"}]
+            client, "Spanish 1", [{"word": "hola", "pinyin": "pīnyīn", "definition": "hi"}]
         )
         client.delete(f"/vocabulary/session/{sid}", headers=AUTH_HEADERS)
         sessions = client.get("/sessions", headers=AUTH_HEADERS).json()
