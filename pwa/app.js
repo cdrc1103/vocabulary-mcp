@@ -325,20 +325,37 @@ function showCard() {
 
 // Fill both faces of the card for the current mode.
 // Normal:  front word, back definition + example (+ Heisig pinyin block).
-// Reverse: front pinyin, back hanzi + English translation + example. Cards
-// without pinyin (non-Heisig) fall back to definition on the front and the
-// word on the back, since there is nothing to show as pinyin.
+// Reverse: front pinyin only, back hanzi + English translation + example.
+// Cards with no recoverable pinyin fall back to definition on the front and
+// the word on the back.
+// Split a card into its pinyin and English parts. Heisig cards carry pinyin in
+// their own field; regular cards store "pinyin | english" in the definition.
+// Returns pinyin: "" when the card has no pinyin to show.
+function splitPinyin(card) {
+  const definition = card.definition || "";
+  if (card.heisig && card.heisig.pinyin) {
+    return { pinyin: card.heisig.pinyin, english: definition };
+  }
+  const sep = definition.indexOf(" | ");
+  if (sep === -1) return { pinyin: "", english: definition };
+  return {
+    pinyin: definition.slice(0, sep).trim(),
+    english: definition.slice(sep + 3).trim(),
+  };
+}
+
 function renderCardFaces(card) {
   const heisig = card.heisig;
   const toneClass = heisig ? `tone-${heisig.tone || 5}` : "";
-  const pinyinFront = reverseMode && !!(heisig && heisig.pinyin);
+  const { pinyin, english } = splitPinyin(card);
+  const pinyinFront = reverseMode && !!pinyin;
 
   if (pinyinFront) {
-    studyEl.word.textContent = heisig.pinyin;
+    studyEl.word.textContent = pinyin;
     studyEl.word.className = `card-word ${toneClass}`.trim();
     studyEl.definition.textContent = card.word || "";
     studyEl.definition.className = `card-definition ${toneClass}`.trim();
-    studyEl.translation.textContent = card.definition || "";
+    studyEl.translation.textContent = english;
   } else if (reverseMode) {
     studyEl.word.textContent = card.definition || "";
     studyEl.word.className = "card-word";
