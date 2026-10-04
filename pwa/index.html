@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#1E90FF" />
+  <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
   <title>Vocab-U-Larry</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="favicon.png" />
@@ -35,50 +36,121 @@
 
   <!-- ── View: Home ──────────────────────────────────────────────────────── -->
   <div id="view-home" class="view">
-    <header>
-      <h1><span aria-hidden="true">📖</span> Vocab-U-Larry</h1>
-      <button class="btn-icon" id="btn-logout" aria-label="Log out" title="Log out">⏏</button>
+    <!-- AppHeader -->
+    <header class="app-header">
+      <h1 class="app-title"><span aria-hidden="true">📖</span> Vocab-U-Larry</h1>
+      <div class="menu-wrap">
+        <button
+          class="btn-icon"
+          id="btn-menu"
+          aria-label="Settings and menu"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="app-menu"
+        >⚙︎</button>
+        <div id="app-menu" class="menu hidden" role="menu" aria-label="Menu">
+          <button class="menu-item" id="btn-logout" role="menuitem">Log out</button>
+        </div>
+      </div>
     </header>
+
     <main class="home-main">
-      <div class="stats">
-        <div class="stat-card">
-          <span class="stat-number" id="total-words">—</span>
-          <span class="stat-label">total words</span>
+      <div class="greeting">
+        <h2 id="greeting-title">Good morning <span aria-hidden="true">👋</span></h2>
+        <p>Ready for a quick review?</p>
+      </div>
+
+      <!-- StudyHeroCard (+ PrimaryStudyButton) -->
+      <section class="hero" aria-labelledby="hero-count">
+        <p class="hero-eyebrow">Review</p>
+        <p class="hero-count" id="hero-count" aria-live="polite">— <span>words</span></p>
+        <p class="hero-sub" id="hero-sub">ready for you</p>
+        <button class="btn btn-primary btn-cta" id="btn-study">
+          Start studying <span class="arrow" aria-hidden="true">→</span>
+        </button>
+      </section>
+
+      <!-- ProgressMetrics -->
+      <dl class="metrics" aria-label="Progress">
+        <div class="metric">
+          <dt class="metric-label">words</dt>
+          <dd class="metric-number" id="total-words">—</dd>
         </div>
-        <div class="stat-card due">
-          <span class="stat-number" id="due-words">—</span>
-          <span class="stat-label">due today</span>
+        <div class="metric">
+          <dt class="metric-label">due today</dt>
+          <dd class="metric-number" id="due-words">—</dd>
         </div>
-      </div>
-      <div class="mode-toggle" id="mode-toggle" role="group" aria-label="Study mode">
-        <button class="mode-btn active" data-mode="false" aria-pressed="true">Normal</button>
-        <button class="mode-btn"        data-mode="true"  aria-pressed="false">Reverse</button>
-      </div>
-      <div class="mode-toggle" id="heisig-toggle" role="group" aria-label="Heisig cards">
-        <button class="mode-btn active" data-heisig="true"  aria-pressed="true">Heisig on</button>
-        <button class="mode-btn"        data-heisig="false" aria-pressed="false">Heisig off</button>
-      </div>
-      <div class="time-filter" id="time-filter" role="group" aria-label="Time filter">
-        <button class="time-btn active" data-days="all"    aria-pressed="true">All</button>
-        <button class="time-btn"        data-days="7"      aria-pressed="false">7d</button>
-        <button class="time-btn"        data-days="30"     aria-pressed="false">30d</button>
-        <button class="time-btn"        data-days="90"     aria-pressed="false">90d</button>
-        <button class="time-btn"        data-days="custom" aria-pressed="false">Custom</button>
-      </div>
-      <input type="date" id="custom-date" class="custom-date-input hidden" aria-label="Start date for custom filter" />
-      <div class="session-filter" id="session-filter" role="group" aria-label="Session filter">
-        <!-- populated by JS -->
-      </div>
-      <div class="home-actions">
-        <button class="btn btn-primary" id="btn-study">Study Now</button>
-        <button class="btn btn-secondary" id="btn-browse">Browse All Words</button>
-      </div>
+        <div class="metric">
+          <dt class="metric-label">sections</dt>
+          <dd class="metric-number" id="section-count">—</dd>
+        </div>
+      </dl>
+
+      <!-- Review settings: secondary, visually quiet -->
+      <section class="settings" aria-labelledby="settings-title">
+        <h3 class="settings-title" id="settings-title">Review settings</h3>
+
+        <!-- VocabularySectionPicker (trigger) -->
+        <div class="setting-row">
+          <span class="setting-label" id="section-label">Vocabulary section</span>
+          <button
+            class="select-btn"
+            id="section-trigger"
+            aria-haspopup="dialog"
+            aria-labelledby="section-label section-trigger-text"
+          >
+            <span class="select-text" id="section-trigger-text">All sections</span>
+            <span class="select-caret" aria-hidden="true">▾</span>
+          </button>
+        </div>
+
+        <!-- StudyModeSelector -->
+        <div class="setting-row">
+          <span class="setting-label" id="mode-label">Study mode</span>
+          <div class="segmented" id="mode-toggle" role="group" aria-labelledby="mode-label">
+            <button class="seg-btn active" data-mode="false" aria-pressed="true">Normal</button>
+            <button class="seg-btn"        data-mode="true"  aria-pressed="false">Reverse</button>
+          </div>
+        </div>
+
+        <!-- HeisigSetting -->
+        <div class="setting-row setting-row-inline">
+          <div class="setting-text">
+            <span class="setting-label" id="heisig-label">Heisig mnemonics</span>
+            <span class="setting-desc" id="heisig-desc">Include Heisig hanzi cards while studying</span>
+          </div>
+          <button
+            class="switch"
+            id="heisig-toggle"
+            role="switch"
+            aria-checked="true"
+            aria-labelledby="heisig-label"
+            aria-describedby="heisig-desc"
+          ><span class="switch-knob" aria-hidden="true"></span></button>
+        </div>
+
+        <!-- ReviewPeriodSelector -->
+        <div class="setting-row">
+          <span class="setting-label" id="period-label">Review period</span>
+          <div class="filter-row" id="time-filter" role="group" aria-labelledby="period-label">
+            <button class="time-btn active" data-days="all"    aria-pressed="true">All</button>
+            <button class="time-btn"        data-days="7"      aria-pressed="false">7d</button>
+            <button class="time-btn"        data-days="30"     aria-pressed="false">30d</button>
+            <button class="time-btn"        data-days="90"     aria-pressed="false">90d</button>
+            <button class="time-btn"        data-days="custom" aria-pressed="false">Custom</button>
+          </div>
+          <input type="date" id="custom-date" class="custom-date-input hidden" aria-label="Start date for custom filter" />
+        </div>
+      </section>
+
+      <!-- BrowseWordsLink -->
+      <button class="link-btn" id="btn-browse">Browse all words <span class="arrow" aria-hidden="true">→</span></button>
     </main>
   </div>
 
   <!-- ── View: Study ─────────────────────────────────────────────────────── -->
   <div id="view-study" class="view hidden">
-    <header>
+    <header class="app-header">
       <button class="btn-icon" id="study-back" aria-label="Back">←</button>
       <h2>Study</h2>
       <span id="study-progress"></span>
@@ -142,7 +214,7 @@
 
   <!-- ── View: Browse ────────────────────────────────────────────────────── -->
   <div id="view-browse" class="view hidden">
-    <header>
+    <header class="app-header">
       <button class="btn-icon" id="browse-back" aria-label="Back">←</button>
       <h2>All Words</h2>
     </header>
@@ -155,6 +227,34 @@
 
   <!-- Offline banner -->
   <div id="offline-banner" class="offline-banner hidden">You're offline</div>
+
+  <!-- ── Section picker (bottom sheet on mobile, modal on desktop) ─────────── -->
+  <div id="section-picker-backdrop" class="sheet-backdrop" aria-hidden="true">
+    <div id="section-picker" class="sheet" role="dialog" aria-modal="true" aria-labelledby="section-picker-title" tabindex="-1">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="picker-head">
+        <h3 id="section-picker-title">Vocabulary sections</h3>
+        <button class="btn-icon" id="section-picker-close" aria-label="Close section picker">✕</button>
+      </div>
+      <div class="picker-search">
+        <input
+          type="search"
+          id="section-search"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="section-list"
+          aria-autocomplete="list"
+          aria-label="Search sections"
+          placeholder="Search sections…"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </div>
+      <ul id="section-list" class="picker-list" role="listbox" aria-label="Vocabulary sections"></ul>
+      <p id="section-empty" class="picker-empty hidden">No matching sections.</p>
+    </div>
+  </div>
 
   <!-- ── Edit card bottom sheet ────────────────────────────────────────────── -->
   <div id="edit-sheet-backdrop" aria-hidden="true">
