@@ -280,6 +280,17 @@ class TestDueVocabulary:
         assert r.status_code == 200
         assert len(r.json()) == 1
 
+    def test_due_lists_are_independent_per_direction(self, client):
+        """Reviewing a word forward does not remove it from the reverse due list."""
+        r = client.post("/vocabulary", json=WORD_PAYLOAD, headers=AUTH_HEADERS)
+        wid = r.json()["id"]
+        client.patch(f"/vocabulary/{wid}/review", json={"quality": 5}, headers=AUTH_HEADERS)
+
+        assert client.get("/vocabulary/due", headers=AUTH_HEADERS).json() == []
+        reverse_due = client.get("/vocabulary/due?direction=reverse", headers=AUTH_HEADERS).json()
+        assert [w["id"] for w in reverse_due] == [wid]
+        assert reverse_due[0]["repetitions"] == 0
+
     def test_created_after_today_includes_new_word(self, client):
         """Words added today appear when created_after is today."""
         from datetime import date
@@ -311,6 +322,54 @@ class TestSubmitReview:
         """Helper to add a word and return its ID."""
         r = client.post("/vocabulary", json=WORD_PAYLOAD, headers=AUTH_HEADERS)
         return r.json()["id"]
+
+    def test_reverse_review_leaves_forward_progress_untouched(self, client):
+        """A reverse review must not overwrite the forward SM-2 state."""
+        wid = self._add_word(client)
+        fwd = client.patch(f"/vocabulary/{wid}/review", json={"quality": 5}, headers=AUTH_HEADERS)
+        assert fwd.json()["repetitions"] == 1
+
+        rev = client.patch(
+            f"/vocabulary/{wid}/review?direction=reverse",
+            json={"quality": 1},
+            headers=AUTH_HEADERS,
+        )
+        assert rev.status_code == 200
+        assert rev.json()["repetitions"] == 0  # reverse starts fresh and failed
+
+        listed = client.get("/vocabulary", headers=AUTH_HEADERS).json()["words"][0]
+        assert listed["repetitions"] == 1
+        assert listed["next_review"] == fwd.json()["next_review"]
+
+    def test_forward_review_leaves_reverse_progress_untouched(self, client):
+        """A forward review must not change the reverse schedule."""
+        wid = self._add_word(client)
+        rev = client.patch(
+            f"/vocabulary/{wid}/review?direction=reverse",
+            json={"quality": 5},
+            headers=AUTH_HEADERS,
+        )
+        client.patch(f"/vocabulary/{wid}/review", json={"quality": 5}, headers=AUTH_HEADERS)
+        client.patch(f"/vocabulary/{wid}/review", json={"quality": 5}, headers=AUTH_HEADERS)
+
+        due_rev = client.get("/vocabulary/due?direction=reverse", headers=AUTH_HEADERS).json()
+        assert due_rev == []  # reviewed in reverse today, scheduled for the future
+        again = client.patch(
+            f"/vocabulary/{wid}/review?direction=reverse",
+            json={"quality": 5},
+            headers=AUTH_HEADERS,
+        )
+        assert again.json()["repetitions"] == rev.json()["repetitions"] + 1
+
+    def test_invalid_direction_returns_422(self, client):
+        """Unknown directions are rejected."""
+        wid = self._add_word(client)
+        r = client.patch(
+            f"/vocabulary/{wid}/review?direction=sideways",
+            json={"quality": 4},
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 422
 
     def test_passing_review_advances_schedule(self, client):
         """Test submitting a passing review advances SM-2 schedule."""

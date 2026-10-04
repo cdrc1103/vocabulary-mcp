@@ -40,6 +40,17 @@ class TestMigrations:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
             assert version == len(db.MIGRATIONS)
 
+    def test_vocabulary_has_reverse_srs_columns(self, tmp_db):
+        """Reverse study keeps its own SM-2 columns."""
+        with db.get_connection() as conn:
+            cols = _columns(conn, "vocabulary")
+        assert {
+            "reverse_interval",
+            "reverse_ease_factor",
+            "reverse_repetitions",
+            "reverse_next_review",
+        } <= cols
+
     def test_vocabulary_has_hanzi_columns(self, tmp_db):
         """vocabulary keeps keyword, pinyin, tone for hanzi cards."""
         with db.get_connection() as conn:

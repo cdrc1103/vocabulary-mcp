@@ -116,6 +116,10 @@ function showErrorMsg(container, onlineMsg, offlineMsg) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let reverseMode = false;
+
+// Each study direction has its own SM-2 schedule on the backend, so due lists
+// and reviews are always scoped to the active mode.
+const studyDirection = () => (reverseMode ? "reverse" : "forward");
 let createdAfter = null; // ISO date string or null for "All time"
 let currentSessionId = null; // number or null for "All sessions"
 
@@ -138,8 +142,8 @@ async function refreshDueCount() {
     const params = new URLSearchParams();
     if (createdAfter) params.set("created_after", createdAfter);
     if (currentSessionId !== null) params.set("session_id", String(currentSessionId));
-    const path = params.size ? `/vocabulary/due?${params}` : "/vocabulary/due";
-    const dueRes = await apiFetch(path);
+    params.set("direction", studyDirection());
+    const dueRes = await apiFetch(`/vocabulary/due?${params}`);
     if (dueRes.ok) {
       const due = await dueRes.json();
       document.getElementById("due-words").textContent = applyHeisigFilter(due).length;
@@ -271,8 +275,8 @@ async function loadStudy(reverse = false) {
     const params = new URLSearchParams();
     if (createdAfter) params.set("created_after", createdAfter);
     if (currentSessionId !== null) params.set("session_id", String(currentSessionId));
-    const duePath = params.size ? `/vocabulary/due?${params}` : "/vocabulary/due";
-    const res = await apiFetch(duePath);
+    params.set("direction", studyDirection());
+    const res = await apiFetch(`/vocabulary/due?${params}`);
     if (!res.ok) throw new Error("Failed to load due words");
     dueCards = shuffle(applyHeisigFilter(await res.json()));
   } catch {
@@ -440,7 +444,7 @@ studyEl.ratings.addEventListener("click", async (e) => {
 
 async function submitReview(id, quality) {
   try {
-    await apiFetch(`/vocabulary/${id}/review`, {
+    await apiFetch(`/vocabulary/${id}/review?direction=${studyDirection()}`, {
       method: "PATCH",
       body: JSON.stringify({ quality }),
     });
@@ -600,6 +604,7 @@ document.getElementById("mode-toggle").addEventListener("click", (e) => {
     b.classList.toggle("active", b === btn);
     b.setAttribute("aria-pressed", String(b === btn));
   });
+  refreshDueCount(); // due list differs per direction
 });
 
 // ── Time filter ───────────────────────────────────────────────────────────────

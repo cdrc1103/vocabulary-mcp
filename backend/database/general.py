@@ -142,13 +142,86 @@ def _migrate_v4_drop_primitives_and_story(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE vocabulary DROP COLUMN story_edited")
 
 
+def _migrate_v5_reverse_srs_columns(conn: sqlite3.Connection) -> None:
+    """Add a separate SM-2 state for reverse-mode study.
+
+    Reverse reviews used to overwrite the forward interval/ease/repetitions/
+    next_review. They now write to their own columns so the two directions
+    progress independently. reverse_next_review stays NULL until the first
+    reverse review, and NULL means "due", so every existing card starts with
+    a fresh reverse schedule.
+
+    Args:
+        conn: Open SQLite connection inside the migration transaction.
+    """
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(vocabulary)").fetchall()}
+    for col, typedef in [
+        ("reverse_interval", "INTEGER DEFAULT 1"),
+        ("reverse_ease_factor", "REAL DEFAULT 2.5"),
+        ("reverse_repetitions", "INTEGER DEFAULT 0"),
+        ("reverse_next_review", "TEXT"),
+    ]:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE vocabulary ADD COLUMN {col} {typedef}")
+
+
 # Ordered migrations. Index + 1 == the user_version they bring the DB to.
 MIGRATIONS = [
     _migrate_v1_baseline,
     _migrate_v2_heisig_columns,
     _migrate_v3_primitive_tables,
     _migrate_v4_drop_primitives_and_story,
+    _migrate_v5_reverse_srs_columns,
 ]
+
+# Study directions. "forward" shows the word first; "reverse" shows pinyin first.
+# Each direction keeps its own SM-2 state: forward uses the plain SRS columns,
+# reverse uses the reverse_-prefixed ones.
+DIRECTIONS = ("forward", "reverse")
+
+
+def _srs_columns(direction: str) -> dict[str, str]:
+    """Map the SM-2 field names to the DB columns for a study direction.
+
+    Args:
+        direction: "forward" or "reverse".
+
+    Returns:
+        Dict with interval, ease_factor, repetitions, next_review column names.
+
+    Raises:
+        ValueError: If direction is not a known study direction.
+    """
+    if direction not in DIRECTIONS:
+        raise ValueError(f"Unknown direction: {direction!r}")
+    prefix = "reverse_" if direction == "reverse" else ""
+    return {f: f"{prefix}{f}" for f in ("interval", "ease_factor", "repetitions", "next_review")}
+
+
+def _with_direction_state(row: dict, direction: str) -> dict:
+    """Return a row whose SM-2 fields reflect the given direction's state.
+
+    For reverse, the reverse_* values are copied over interval, ease_factor,
+    repetitions and next_review so callers (and the API response) see one
+    consistent shape. A card never reviewed in reverse reports the defaults and
+    is due today.
+
+    Args:
+        row: Flat vocabulary row dict.
+        direction: "forward" or "reverse".
+
+    Returns:
+        The row unchanged for forward, or a copy with reverse SM-2 values for reverse.
+    """
+    if direction == "forward":
+        return row
+    return {
+        **row,
+        "interval": row.get("reverse_interval") or 1,
+        "ease_factor": row.get("reverse_ease_factor") or 2.5,
+        "repetitions": row.get("reverse_repetitions") or 0,
+        "next_review": row.get("reverse_next_review") or date.today().isoformat(),
+    }
 
 
 def init_db() -> None:
@@ -393,6 +466,7 @@ def get_words(
 def get_due_words(
     created_after: str | None = None,
     session_id: int | None = None,
+    direction: str = "forward",
 ) -> list[dict]:
     """Retrieve words with next_review <= now (due for study).
 
@@ -400,13 +474,18 @@ def get_due_words(
         created_after: Optional ISO date string (YYYY-MM-DD). Filters to words
             created on or after this date.
         session_id: Optional filter by session ID. Stacks with created_after (AND).
+        direction: "forward" or "reverse". Selects which SM-2 schedule decides
+            what is due; the returned SM-2 fields reflect that direction.
 
     Returns:
-        List of vocabulary dicts including session_name, ordered by next_review ASC.
+        List of vocabulary dicts including session_name, ordered by that
+        direction's next_review ASC.
     """
     today = date.today().isoformat()
-    conditions = ["v.next_review <= ?"]
-    params: list = [today]
+    next_review_col = _srs_columns(direction)["next_review"]
+    # A never-reverse-reviewed card has NULL reverse_next_review and is due now.
+    conditions = [f"COALESCE(v.{next_review_col}, ?) <= ?"]
+    params: list = [today, today]
     if created_after:
         conditions.append("v.created_at >= ?")
         params.append(created_after)
@@ -421,27 +500,32 @@ def get_due_words(
             FROM vocabulary v
             LEFT JOIN sessions s ON v.session_id = s.id
             {where}
-            ORDER BY v.next_review ASC
+            ORDER BY COALESCE(v.{next_review_col}, ?) ASC
             """,
-            params,
+            [*params, today],
         ).fetchall()
-        cards = [dict(r) for r in rows]
+        cards = [_with_direction_state(dict(r), direction) for r in rows]
     return cards
 
 
-def review_word(word_id: int, quality: int) -> dict | None:
+def review_word(word_id: int, quality: int, direction: str = "forward") -> dict | None:
     """Submit a review for a word and update SM-2 algorithm state.
 
     Applies the SM-2 algorithm to calculate new interval, ease factor, and
-    repetition count. Updates next_review date based on new interval.
+    repetition count. Updates next_review date based on new interval. Only the
+    given direction's schedule is touched, so a reverse review never changes
+    the forward progress (and vice versa).
 
     Args:
         word_id: ID of the word being reviewed.
         quality: SM-2 quality score (0-5, where 3+ is passing).
+        direction: "forward" or "reverse".
 
     Returns:
-        Updated vocabulary dict including session_name, or None if word_id not found.
+        Updated vocabulary dict including session_name (SM-2 fields reflect the
+        reviewed direction), or None if word_id not found.
     """
+    cols = _srs_columns(direction)
     with get_connection() as conn:
         row = conn.execute(
             """
@@ -455,16 +539,17 @@ def review_word(word_id: int, quality: int) -> dict | None:
         if row is None:
             return None
 
-        row = dict(row)
+        row = _with_direction_state(dict(row), direction)
         new_interval, new_ease, new_reps = apply_sm2(
             row["interval"], row["ease_factor"], row["repetitions"], quality
         )
         next_review = (date.today() + timedelta(days=new_interval)).isoformat()
 
         conn.execute(
-            """
+            f"""
             UPDATE vocabulary
-            SET interval = ?, ease_factor = ?, repetitions = ?, next_review = ?
+            SET {cols["interval"]} = ?, {cols["ease_factor"]} = ?,
+                {cols["repetitions"]} = ?, {cols["next_review"]} = ?
             WHERE id = ?
             """,
             (new_interval, new_ease, new_reps, next_review, word_id),
