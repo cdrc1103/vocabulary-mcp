@@ -139,13 +139,26 @@ const homeEl = {
   due: document.getElementById("due-words"),
   sectionCount: document.getElementById("section-count"),
   greeting: document.getElementById("greeting-title"),
+  greetingSub: document.getElementById("greeting-sub"),
 };
 
-function greetingForHour(hour) {
-  if (hour < 5) return "Good evening";
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+const PROVERBS = [
+  ["好好学习，天天向上", "Good good study, day day up"],
+  ["学无止境", "There is no end to learning"],
+  ["活到老，学到老", "Live until old, learn until old"],
+  ["千里之行，始于足下", "A journey of a thousand miles begins with a single step"],
+  ["不积跬步，无以至千里", "Without small steps, you can't travel a thousand miles"],
+  ["熟能生巧", "Practice makes perfect"],
+  ["书山有路勤为径", "On the mountain of books, diligence is the path"],
+  ["三人行，必有我师", "Among three people, one is sure to be my teacher"],
+  ["学而时习之，不亦说乎", "To learn and practice what you learn — is that not a joy?"],
+  ["只要功夫深，铁杵磨成针", "With enough effort, an iron rod grinds into a needle"],
+];
+
+function pickProverb() {
+  const [zh, en] = PROVERBS[Math.floor(Math.random() * PROVERBS.length)];
+  homeEl.greeting.textContent = zh;
+  homeEl.greetingSub.textContent = en;
 }
 
 // null = unknown (loading or offline); otherwise the due-word count
@@ -189,7 +202,7 @@ async function refreshDueCount() {
 
 async function loadHome() {
   showView("home");
-  homeEl.greeting.firstChild.textContent = `${greetingForHour(new Date().getHours())} `;
+  pickProverb();
   homeEl.total.textContent = "—";
   renderDue(null);
   document.getElementById("custom-date").max = new Date().toISOString().slice(0, 10);
