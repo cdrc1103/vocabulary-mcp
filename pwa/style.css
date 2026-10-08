@@ -515,10 +515,11 @@ button { -webkit-tap-highlight-color: transparent; }
 /* English translation shown under the hanzi on the back in reverse mode */
 .card-translation { margin-top: 0.5rem; font-size: 1.125rem; }
 
-/* Heisig study block (appended below definition/example on the card back) */
-.card-heisig {
-  margin-top: 1rem; padding-top: 0.75rem;
-  border-top: 1px solid var(--border); text-align: left; width: 100%;
+/* Pinyin sits at the top of the card back, centered, above a divider and the
+   rest of the card. */
+.card-pinyin-block {
+  margin-bottom: 1rem; padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border); text-align: center; width: 100%;
 }
 .card-pinyin { font-weight: 700; font-size: 1.125rem; }
 /* Tone colors: 1 red, 2 green, 3 blue, 4 purple, 5 neutral gray */

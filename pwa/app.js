@@ -336,7 +336,7 @@ const studyEl = {
   word: document.getElementById("card-word"),
   definition: document.getElementById("card-definition"),
   example: document.getElementById("card-example"),
-  heisig: document.getElementById("card-heisig"),
+  pinyinBlock: document.getElementById("card-pinyin-block"),
   pinyin: document.getElementById("card-pinyin"),
   translation: document.getElementById("card-translation"),
   ratings: document.getElementById("rating-buttons"),
@@ -470,7 +470,7 @@ function renderCardFaces(card) {
 // Populate or hide the pinyin block on the card back. Tone colouring needs a
 // tone number, which only Heisig cards have; other cards use the neutral tone.
 function renderPinyinBlock(pinyin, tone, show) {
-  studyEl.heisig.classList.toggle("hidden", !show);
+  studyEl.pinyinBlock.classList.toggle("hidden", !show);
   if (!show) return;
 
   studyEl.pinyin.textContent = pinyin;
