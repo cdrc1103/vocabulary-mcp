@@ -131,16 +131,6 @@ try {
   // storage unavailable — keep default
 }
 
-// Normal mode shows the card's pinyin on the back when this is on. Heisig cards
-// always show theirs. Reverse mode already has pinyin on the front.
-const PINYIN_KEY = "vocab_show_pinyin";
-let showPinyin = true;
-try {
-  showPinyin = localStorage.getItem(PINYIN_KEY) !== "false";
-} catch {
-  // storage unavailable — keep default
-}
-
 function applyHeisigFilter(cards) {
   return includeHeisig ? cards : cards.filter((c) => !c.heisig);
 }
@@ -464,7 +454,7 @@ function renderCardFaces(card) {
     studyEl.word.textContent = card.word || "";
     studyEl.word.className = `card-word ${toneClass}`.trim();
     // Legacy cards embed "pinyin | english"; show just the English and let the
-    // pinyin block (below) carry the pinyin so the toggle can hide it.
+    // pinyin block (below) carry the pinyin.
     studyEl.definition.textContent = reverseMode || !pinyin ? card.definition || "" : english;
     studyEl.definition.className = "card-definition";
     studyEl.translation.textContent = "";
@@ -472,10 +462,9 @@ function renderCardFaces(card) {
   studyEl.translation.classList.toggle("hidden", !pinyinFront);
   studyEl.example.textContent = card.example || "";
 
-  // Reverse mode with pinyin: it is already on the front, don't repeat it.
-  // Normal mode: show it when the setting is on; Heisig cards always show it.
-  const showOnBack = !reverseMode && !!pinyin && (!!heisig || showPinyin);
-  renderPinyinBlock(pinyin, heisig ? heisig.tone || 5 : null, showOnBack);
+  // Pinyin sits on the front in reverse mode, so only show it on the back in
+  // normal mode.
+  renderPinyinBlock(pinyin, heisig ? heisig.tone || 5 : null, !reverseMode && !!pinyin);
 }
 
 // Populate or hide the pinyin block on the card back. Tone colouring needs a
@@ -898,24 +887,6 @@ heisigSwitch.addEventListener("click", () => {
   refreshDueCount();
 });
 syncHeisigToggle();
-
-// ── Pinyin setting ────────────────────────────────────────────────────────────
-const pinyinSwitch = document.getElementById("pinyin-toggle");
-
-function syncPinyinToggle() {
-  pinyinSwitch.setAttribute("aria-checked", String(showPinyin));
-}
-
-pinyinSwitch.addEventListener("click", () => {
-  showPinyin = !showPinyin;
-  try {
-    localStorage.setItem(PINYIN_KEY, String(showPinyin));
-  } catch {
-    // storage unavailable — preference lasts for this page load only
-  }
-  syncPinyinToggle();
-});
-syncPinyinToggle();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (getToken()) {
