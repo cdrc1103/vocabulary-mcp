@@ -336,7 +336,7 @@ const studyEl = {
   word: document.getElementById("card-word"),
   definition: document.getElementById("card-definition"),
   example: document.getElementById("card-example"),
-  heisig: document.getElementById("card-heisig"),
+  pinyinBlock: document.getElementById("card-pinyin-block"),
   pinyin: document.getElementById("card-pinyin"),
   translation: document.getElementById("card-translation"),
   ratings: document.getElementById("rating-buttons"),
@@ -453,27 +453,28 @@ function renderCardFaces(card) {
   } else {
     studyEl.word.textContent = card.word || "";
     studyEl.word.className = `card-word ${toneClass}`.trim();
-    studyEl.definition.textContent = card.definition || "";
+    // Legacy cards embed "pinyin | english"; show just the English and let the
+    // pinyin block (below) carry the pinyin.
+    studyEl.definition.textContent = reverseMode || !pinyin ? card.definition || "" : english;
     studyEl.definition.className = "card-definition";
     studyEl.translation.textContent = "";
   }
   studyEl.translation.classList.toggle("hidden", !pinyinFront);
   studyEl.example.textContent = card.example || "";
 
-  // Pinyin is already on the front in reverse mode; don't repeat it on the back.
-  renderHeisig(card, !pinyinFront);
+  // Pinyin sits on the front in reverse mode, so only show it on the back in
+  // normal mode.
+  renderPinyinBlock(pinyin, heisig ? heisig.tone || 5 : null, !reverseMode && !!pinyin);
 }
 
-// Populate or hide the Heisig block on the card back based on whether the
-// card carries Heisig data. Additive: definition/example above it are untouched.
-function renderHeisig(card, show = true) {
-  const heisig = card.heisig;
-  studyEl.heisig.classList.toggle("hidden", !heisig || !show);
-  if (!heisig || !show) return;
+// Populate or hide the pinyin block on the card back. Tone colouring needs a
+// tone number, which only Heisig cards have; other cards use the neutral tone.
+function renderPinyinBlock(pinyin, tone, show) {
+  studyEl.pinyinBlock.classList.toggle("hidden", !show);
+  if (!show) return;
 
-  const tone = heisig.tone || 5;
-  studyEl.pinyin.textContent = heisig.pinyin || "";
-  studyEl.pinyin.className = `card-pinyin tone-${tone}`;
+  studyEl.pinyin.textContent = pinyin;
+  studyEl.pinyin.className = `card-pinyin tone-${tone || 5}`;
 }
 
 // Flip card on tap / keyboard
