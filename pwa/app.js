@@ -131,6 +131,16 @@ try {
   // storage unavailable — keep default
 }
 
+// Normal mode shows the card's pinyin on the back when this is on. Heisig cards
+// always show theirs. Reverse mode already has pinyin on the front.
+const PINYIN_KEY = "vocab_show_pinyin";
+let showPinyin = true;
+try {
+  showPinyin = localStorage.getItem(PINYIN_KEY) !== "false";
+} catch {
+  // storage unavailable — keep default
+}
+
 function applyHeisigFilter(cards) {
   return includeHeisig ? cards : cards.filter((c) => !c.heisig);
 }
@@ -453,27 +463,29 @@ function renderCardFaces(card) {
   } else {
     studyEl.word.textContent = card.word || "";
     studyEl.word.className = `card-word ${toneClass}`.trim();
-    studyEl.definition.textContent = card.definition || "";
+    // Legacy cards embed "pinyin | english"; show just the English and let the
+    // pinyin block (below) carry the pinyin so the toggle can hide it.
+    studyEl.definition.textContent = reverseMode || !pinyin ? card.definition || "" : english;
     studyEl.definition.className = "card-definition";
     studyEl.translation.textContent = "";
   }
   studyEl.translation.classList.toggle("hidden", !pinyinFront);
   studyEl.example.textContent = card.example || "";
 
-  // Pinyin is already on the front in reverse mode; don't repeat it on the back.
-  renderHeisig(card, !pinyinFront);
+  // Reverse mode with pinyin: it is already on the front, don't repeat it.
+  // Normal mode: show it when the setting is on; Heisig cards always show it.
+  const showOnBack = !reverseMode && !!pinyin && (!!heisig || showPinyin);
+  renderPinyinBlock(pinyin, heisig ? heisig.tone || 5 : null, showOnBack);
 }
 
-// Populate or hide the Heisig block on the card back based on whether the
-// card carries Heisig data. Additive: definition/example above it are untouched.
-function renderHeisig(card, show = true) {
-  const heisig = card.heisig;
-  studyEl.heisig.classList.toggle("hidden", !heisig || !show);
-  if (!heisig || !show) return;
+// Populate or hide the pinyin block on the card back. Tone colouring needs a
+// tone number, which only Heisig cards have; other cards use the neutral tone.
+function renderPinyinBlock(pinyin, tone, show) {
+  studyEl.heisig.classList.toggle("hidden", !show);
+  if (!show) return;
 
-  const tone = heisig.tone || 5;
-  studyEl.pinyin.textContent = heisig.pinyin || "";
-  studyEl.pinyin.className = `card-pinyin tone-${tone}`;
+  studyEl.pinyin.textContent = pinyin;
+  studyEl.pinyin.className = `card-pinyin tone-${tone || 5}`;
 }
 
 // Flip card on tap / keyboard
@@ -886,6 +898,24 @@ heisigSwitch.addEventListener("click", () => {
   refreshDueCount();
 });
 syncHeisigToggle();
+
+// ── Pinyin setting ────────────────────────────────────────────────────────────
+const pinyinSwitch = document.getElementById("pinyin-toggle");
+
+function syncPinyinToggle() {
+  pinyinSwitch.setAttribute("aria-checked", String(showPinyin));
+}
+
+pinyinSwitch.addEventListener("click", () => {
+  showPinyin = !showPinyin;
+  try {
+    localStorage.setItem(PINYIN_KEY, String(showPinyin));
+  } catch {
+    // storage unavailable — preference lasts for this page load only
+  }
+  syncPinyinToggle();
+});
+syncPinyinToggle();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (getToken()) {
