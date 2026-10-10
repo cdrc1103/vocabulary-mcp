@@ -104,6 +104,15 @@
           </button>
         </div>
 
+        <!-- ActivitySelector -->
+        <div class="setting-row">
+          <span class="setting-label" id="activity-label">Practice</span>
+          <div class="segmented" id="activity-toggle" role="group" aria-labelledby="activity-label">
+            <button class="seg-btn active" data-activity="cards" aria-pressed="true">Flashcards</button>
+            <button class="seg-btn"        data-activity="quiz"  aria-pressed="false">Quiz</button>
+          </div>
+        </div>
+
         <!-- StudyModeSelector -->
         <div class="setting-row">
           <span class="setting-label" id="mode-label">Study mode</span>
@@ -127,6 +136,46 @@
             aria-labelledby="heisig-label"
             aria-describedby="heisig-desc"
           ><span class="switch-knob" aria-hidden="true"></span></button>
+        </div>
+
+        <!-- AudioSettings -->
+        <div class="setting-row setting-row-inline">
+          <div class="setting-text">
+            <span class="setting-label" id="autoplay-label">Auto-play audio</span>
+            <span class="setting-desc" id="autoplay-desc">Speak words and sentences as you study</span>
+          </div>
+          <button
+            class="switch"
+            id="autoplay-toggle"
+            role="switch"
+            aria-checked="true"
+            aria-labelledby="autoplay-label"
+            aria-describedby="autoplay-desc"
+          ><span class="switch-knob" aria-hidden="true"></span></button>
+        </div>
+        <div class="setting-row setting-row-inline">
+          <div class="setting-text">
+            <span class="setting-label" id="audiofirst-label">Hear the word first</span>
+            <span class="setting-desc" id="audiofirst-desc">Flashcards, Normal mode: play audio before you flip</span>
+          </div>
+          <button
+            class="switch"
+            id="audiofirst-toggle"
+            role="switch"
+            aria-checked="false"
+            aria-labelledby="audiofirst-label"
+            aria-describedby="audiofirst-desc"
+          ><span class="switch-knob" aria-hidden="true"></span></button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label" id="rate-label">Speech speed</span>
+          <div class="segmented" id="rate-toggle" role="group" aria-labelledby="rate-label">
+            <button class="seg-btn" data-rate="0.6" aria-pressed="false">Slow</button>
+            <button class="seg-btn active" data-rate="0.8" aria-pressed="true">Normal</button>
+            <button class="seg-btn" data-rate="1" aria-pressed="false">Fast</button>
+          </div>
+          <p class="setting-desc voice-status" id="voice-status"></p>
+          <button class="link-btn voice-test" id="btn-voice-test" type="button">Test voice 🔊</button>
         </div>
 
         <!-- ReviewPeriodSelector -->
@@ -171,6 +220,10 @@
         <button class="btn btn-secondary" id="study-home-btn">Home</button>
       </div>
 
+      <p id="study-notice" class="centered hidden"></p>
+
+      <div id="quiz-area" class="hidden"></div>
+
       <div id="flashcard-area" class="hidden">
         <div
           class="flashcard-scene"
@@ -194,6 +247,10 @@
               <div class="card-example" id="card-example"></div>
             </div>
           </div>
+        </div>
+
+        <div class="card-speak-row">
+          <button class="btn btn-secondary hidden" id="card-speak" type="button">🔊 Hear it</button>
         </div>
 
         <div class="rating-buttons hidden" id="rating-buttons">
@@ -270,8 +327,16 @@
         <textarea id="edit-definition" rows="2"></textarea>
       </div>
       <div class="edit-sheet-field">
-        <label for="edit-example">Example</label>
+        <label for="edit-example">Example sentence (hanzi)</label>
         <textarea id="edit-example" rows="2"></textarea>
+      </div>
+      <div class="edit-sheet-field">
+        <label for="edit-example-pinyin">Example pinyin</label>
+        <textarea id="edit-example-pinyin" rows="2"></textarea>
+      </div>
+      <div class="edit-sheet-field">
+        <label for="edit-example-translation">Example translation</label>
+        <textarea id="edit-example-translation" rows="2"></textarea>
       </div>
       <p id="edit-error" class="edit-error hidden"></p>
       <div class="edit-sheet-actions">
@@ -282,6 +347,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -98,6 +98,36 @@ class TestMigrations:
             assert "story" not in cols
             assert conn.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRATIONS)
 
+    def test_v6_splits_three_line_examples(self, tmp_path, monkeypatch):
+        """A v5 DB with "hanzi\\npinyin\\nenglish" examples is split into the new columns;
+        single-line and non-matching examples are left alone."""
+        legacy = str(tmp_path / "v5.db")
+        monkeypatch.setattr(db, "DATABASE_PATH", legacy)
+        monkeypatch.setattr(db, "MIGRATIONS", db.MIGRATIONS[:5])
+        db.init_db()
+        three = "我们明天有约会。\nWǒmen míngtiān yǒu yuēhuì.\nWe have a date tomorrow."
+        two = "line one\nline two"
+        with db.get_connection() as conn:
+            for word, example in [("约会", three), ("位", "三位。"), ("x", two)]:
+                conn.execute(
+                    "INSERT INTO vocabulary (word, definition, example, language, session_id) "
+                    "VALUES (?, 'd', ?, 'zh', 1)",
+                    (word, example),
+                )
+        monkeypatch.undo()
+        monkeypatch.setattr(db, "DATABASE_PATH", legacy)
+        db.init_db()
+        with db.get_connection() as conn:
+            rows = {r["word"]: dict(r) for r in conn.execute("SELECT * FROM vocabulary").fetchall()}
+            assert conn.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRATIONS)
+        assert rows["约会"]["example"] == "我们明天有约会。"
+        assert rows["约会"]["example_pinyin"] == "Wǒmen míngtiān yǒu yuēhuì."
+        assert rows["约会"]["example_translation"] == "We have a date tomorrow."
+        assert rows["位"]["example"] == "三位。"
+        assert rows["位"]["example_pinyin"] is None
+        assert rows["x"]["example"] == two
+        assert rows["x"]["example_translation"] is None
+
     def test_v3_db_with_story_data_upgrades_and_keeps_hanzi_fields(self, tmp_path, monkeypatch):
         """A DB already on v3 (with primitives/story) upgrades to v4, drops story,
         and keeps keyword/pinyin/tone for existing hanzi cards."""

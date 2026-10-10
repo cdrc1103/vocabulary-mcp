@@ -40,6 +40,8 @@ def upsert_hanzi(
     definition: str | None = None,
     example: str | None = None,
     session_name: str | None = None,
+    example_pinyin: str | None = None,
+    example_translation: str | None = None,
 ) -> dict:
     """Create or enrich a Heisig hanzi card, matching an existing card by word alone.
 
@@ -55,6 +57,8 @@ def upsert_hanzi(
         definition: Meaning/usage for a new card; ignored on enrich. Defaults to keyword.
         example: Optional usage sentence for a new card; ignored on enrich.
         session_name: Session for a new card only; never moves an existing card.
+        example_pinyin: Optional pinyin of the example, new cards only.
+        example_translation: Optional English translation of the example, new cards only.
 
     Returns:
         Dict with "status" ("created"|"enriched"|"unchanged") and "card".
@@ -69,14 +73,16 @@ def upsert_hanzi(
             cur = conn.execute(
                 """
                 INSERT INTO vocabulary
-                    (word, definition, example, language, created_at, next_review, session_id,
-                     keyword, pinyin, tone)
-                VALUES (?, ?, ?, 'Chinese', ?, ?, ?, ?, ?, ?)
+                    (word, definition, example, example_pinyin, example_translation, language,
+                     created_at, next_review, session_id, keyword, pinyin, tone)
+                VALUES (?, ?, ?, ?, ?, 'Chinese', ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     word,
                     definition or keyword,
                     example,
+                    example_pinyin,
+                    example_translation,
                     created_at,
                     next_review,
                     session["id"],

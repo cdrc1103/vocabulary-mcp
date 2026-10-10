@@ -104,3 +104,22 @@ The PWA supports two orientations of the same card:
 - **Reverse mode** — front: pinyin, back: hanzi + English translation + example. Pinyin comes from the card's `pinyin` field (legacy cards: parsed from a `pinyin | english` definition). Cards with no recoverable pinyin fall back to front: definition, back: word + example
 
 Both modes use the same SM-2 algorithm and quality scores, but each keeps its own schedule. Normal (forward) progress lives in `interval`, `ease_factor`, `repetitions` and `next_review`; reverse progress lives in the `reverse_`-prefixed columns. The study endpoints take `direction=forward|reverse` (default `forward`), so a reverse review never changes forward progress and vice versa. A card never reviewed in reverse is treated as due, so every existing card starts with a fresh reverse schedule.
+
+---
+
+## Quiz mode and audio
+
+"Practice → Quiz" on the home screen runs a multiple-choice quiz over the same due list as flashcards. The question kinds follow the Normal / Reverse toggle, so each answer updates the schedule of the direction it tests:
+
+| Direction | Question kinds |
+|---|---|
+| Normal | hanzi → meaning, hanzi → pinyin |
+| Reverse | meaning → hanzi, pinyin → hanzi, sound → hanzi |
+
+Wrong options are other cards from the deck, preferring cards with the same character count. Multiple choice is weaker evidence than a self-rated recall, so answers map to fixed qualities (`QUALITY` in `pwa/drill.js`): correct = 4 (never 5), wrong = 1. Only the first attempt on a card is submitted; a missed card is asked once more at the end of the session as practice.
+
+Audio uses the browser's Web Speech API with a Mandarin system voice (Cantonese voices are skipped). It never plays something that gives away the answer: the hanzi → pinyin and meaning → hanzi questions stay silent until answered, and the sound → hanzi question always plays its word. After an answer, and when a flashcard is flipped, the word and its example sentence are spoken. Auto-play, speech speed and "hear the word first" are device settings in Review settings.
+
+### Example sentences
+
+A card's example is stored as three fields: `example` (hanzi only, the part that is spoken), `example_pinyin` and `example_translation`. The app shows them as three lines on the flashcard back, in the quiz result and in Browse. Cards created before the split kept all three lines in `example`; migration v6 split those three-line examples into the new columns. The `chinese-vocab-push` skill (`docs/skills/chinese-vocab-push/SKILL.md`) tells the assistant to write examples that show a word's context and grammar pattern.

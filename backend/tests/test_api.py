@@ -670,6 +670,93 @@ class TestUpdateVocabulary:
         assert body["definition"] == "hi there"
         assert body["example"] == "Salut!"
 
+    def test_example_parts_round_trip(self, client):
+        """POST stores example pinyin/translation and every read returns them."""
+        r = client.post(
+            "/vocabulary",
+            json={
+                "word": "约会",
+                "pinyin": "yuēhuì",
+                "definition": "date",
+                "example": "我们明天有约会。",
+                "example_pinyin": "Wǒmen míngtiān yǒu yuēhuì.",
+                "example_translation": "We have a date tomorrow.",
+                "language": "zh",
+            },
+            headers=AUTH_HEADERS,
+        )
+        assert r.status_code == 201
+        assert r.json()["example_pinyin"] == "Wǒmen míngtiān yǒu yuēhuì."
+        listed = client.get("/vocabulary", headers=AUTH_HEADERS).json()["words"][0]
+        assert listed["example_translation"] == "We have a date tomorrow."
+
+    def test_update_keeps_example_parts_when_omitted(self, client):
+        """A PATCH that does not mention the example parts leaves them untouched;
+        an explicit null clears them."""
+        wid = client.post(
+            "/vocabulary",
+            json={
+                "word": "约会",
+                "pinyin": "yuēhuì",
+                "definition": "date",
+                "example": "我们明天有约会。",
+                "example_pinyin": "Wǒmen míngtiān yǒu yuēhuì.",
+                "example_translation": "We have a date tomorrow.",
+            },
+            headers=AUTH_HEADERS,
+        ).json()["id"]
+        body = {"word": "约会", "definition": "date", "example": "我们明天有约会。"}
+        kept = client.patch(f"/vocabulary/{wid}", json=body, headers=AUTH_HEADERS).json()
+        assert kept["example_pinyin"] == "Wǒmen míngtiān yǒu yuēhuì."
+        cleared = client.patch(
+            f"/vocabulary/{wid}",
+            json={**body, "example_pinyin": None, "example_translation": "Changed."},
+            headers=AUTH_HEADERS,
+        ).json()
+        assert cleared["example_pinyin"] is None
+        assert cleared["example_translation"] == "Changed."
+
+    def test_bulk_and_hanzi_accept_example_parts(self, client):
+        """Bulk add and Heisig upsert both persist the example parts for new cards."""
+        client.post(
+            "/vocabulary/bulk",
+            json={
+                "words": [
+                    {
+                        "word": "约会",
+                        "pinyin": "yuēhuì",
+                        "definition": "date",
+                        "example": "我们明天有约会。",
+                        "example_pinyin": "Wǒmen míngtiān yǒu yuēhuì.",
+                        "example_translation": "We have a date tomorrow.",
+                    }
+                ]
+            },
+            headers=AUTH_HEADERS,
+        )
+        hanzi = client.post(
+            "/vocabulary/hanzi/bulk",
+            json={
+                "cards": [
+                    {
+                        "word": "位",
+                        "keyword": "position",
+                        "pinyin": "wèi",
+                        "tone": 4,
+                        "example": "三位。",
+                        "example_pinyin": "Sān wèi.",
+                        "example_translation": "Three people.",
+                    }
+                ]
+            },
+            headers=AUTH_HEADERS,
+        ).json()
+        assert hanzi["cards"][0]["example_translation"] == "Three people."
+        words = {
+            w["word"]: w for w in client.get("/vocabulary", headers=AUTH_HEADERS).json()["words"]
+        }
+        assert words["约会"]["example_pinyin"] == "Wǒmen míngtiān yǒu yuēhuì."
+
     def test_update_preserves_sm2_state(self, client):
         """Test PATCH /vocabulary/{id} does not change SM-2 scheduling fields."""
         wid = self._add_word(client)

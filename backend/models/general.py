@@ -36,7 +36,9 @@ class VocabularyCreate(BaseModel):
         word: The vocabulary word (required).
         pinyin: Pinyin romanization with tone marks (required, e.g. "biànhuà").
         definition: Meaning/usage only, no pinyin (required).
-        example: Optional example sentence or usage.
+        example: Optional example sentence in hanzi only.
+        example_pinyin: Optional pinyin of the example sentence, with tone marks.
+        example_translation: Optional English translation of the example sentence.
         language: Language code (defaults to "unknown").
         session_name: Session to assign the word to. Auto-created if new. Defaults to "misc".
     """
@@ -45,6 +47,8 @@ class VocabularyCreate(BaseModel):
     pinyin: str = Field(min_length=1)
     definition: str
     example: str | None = None
+    example_pinyin: str | None = None
+    example_translation: str | None = None
     language: str = "unknown"
     session_name: str | None = None
 
@@ -64,7 +68,9 @@ class VocabularyResponse(BaseModel):
             pinyin was stored separately (clients may fall back to parsing
             "pinyin | english" out of the definition).
         definition: Definition of the word.
-        example: Optional example sentence.
+        example: Optional example sentence (hanzi only).
+        example_pinyin: Optional pinyin of the example sentence.
+        example_translation: Optional English translation of the example sentence.
         language: Language code.
         created_at: ISO 8601 timestamp of creation.
         next_review: ISO 8601 timestamp for next review.
@@ -81,6 +87,8 @@ class VocabularyResponse(BaseModel):
     pinyin: str | None = None
     definition: str
     example: str | None = None
+    example_pinyin: str | None = None
+    example_translation: str | None = None
     language: str
     created_at: str
     next_review: str
@@ -119,6 +127,8 @@ class VocabularyResponse(BaseModel):
             pinyin=row.get("pinyin"),
             definition=row["definition"],
             example=row.get("example"),
+            example_pinyin=row.get("example_pinyin"),
+            example_translation=row.get("example_translation"),
             language=row["language"],
             created_at=row["created_at"],
             next_review=row["next_review"],
@@ -151,11 +161,15 @@ class VocabularyUpdate(BaseModel):
         word: New word text (required).
         definition: New definition text (required).
         example: New example sentence, or None to clear the existing one.
+        example_pinyin: New example pinyin. Omit to keep the stored value; None clears it.
+        example_translation: New example translation. Omit to keep the stored value; None clears it.
     """
 
     word: str
     definition: str
     example: str | None = None
+    example_pinyin: str | None = None
+    example_translation: str | None = None
 
 
 class LoginRequest(BaseModel):

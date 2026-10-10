@@ -26,7 +26,9 @@ class VocabWord(TypedDict, total=False):
         word: The vocabulary word (required).
         pinyin: Pinyin romanization with tone marks, e.g. "biànhuà" (required).
         definition: Definition of the word — meaning/usage only, not pinyin (required).
-        example: Optional example sentence or usage.
+        example: Optional example sentence in hanzi only.
+        example_pinyin: Pinyin of the example sentence, with tone marks.
+        example_translation: English translation of the example sentence.
         language: Optional language code.
         session_name: Optional session name to assign the word to.
     """
@@ -35,6 +37,8 @@ class VocabWord(TypedDict, total=False):
     pinyin: Required[str]
     definition: Required[str]
     example: str
+    example_pinyin: str
+    example_translation: str
     language: str
     session_name: str
 
@@ -90,7 +94,9 @@ mcp = FastMCP(
         "or when you've explained multiple words and want to offer to save them all. "
         "Pass session_name to group all words under a named study session (e.g. 'Japanese N5 Verbs'). "
         "Always pass pinyin in the separate pinyin field. "
-        "The definition field is for meaning/usage only — do NOT put pinyin in it."
+        "The definition field is for meaning/usage only — do NOT put pinyin in it. "
+        "Put the example sentence in hanzi only in example, its pinyin in example_pinyin and "
+        "its English translation in example_translation — never combine them in one field."
     )
 )
 async def bulk_add_vocabulary(
@@ -142,7 +148,9 @@ async def bulk_add_vocabulary(
         "Use this when the user wants to save one word with its definition. "
         "Pass session_name to assign it to a named study session. "
         "Always pass pinyin in the separate pinyin field. "
-        "The definition field is for meaning/usage only — do NOT put pinyin in it."
+        "The definition field is for meaning/usage only — do NOT put pinyin in it. "
+        "Put the example sentence in hanzi only in example, its pinyin in example_pinyin and "
+        "its English translation in example_translation — never combine them in one field."
     )
 )
 async def add_vocabulary(
@@ -150,6 +158,8 @@ async def add_vocabulary(
     pinyin: str,
     definition: str,
     example: str | None = None,
+    example_pinyin: str | None = None,
+    example_translation: str | None = None,
     language: str | None = None,
     session_name: str | None = None,
 ) -> str:
@@ -161,7 +171,9 @@ async def add_vocabulary(
         word: The vocabulary word.
         pinyin: Pinyin romanization with tone marks.
         definition: Definition of the word (meaning only, no pinyin).
-        example: Optional example sentence or usage.
+        example: Optional example sentence in hanzi only.
+        example_pinyin: Optional pinyin of the example sentence, with tone marks.
+        example_translation: Optional English translation of the example sentence.
         language: Optional language code.
         session_name: Session name to assign the word to. Auto-created if new.
 
@@ -174,6 +186,8 @@ async def add_vocabulary(
             "pinyin": pinyin,
             "definition": definition,
             "example": example,
+            "example_pinyin": example_pinyin,
+            "example_translation": example_translation,
             "language": language or "unknown",
             "session_name": session_name,
         }

@@ -11,6 +11,7 @@ from typing import Literal
 
 from auth import PWA_PASSWORD, APIKeyMiddleware, create_token
 from database.general import (
+    UNSET,
     delete_word,
     delete_words_by_session,
     get_due_words,
@@ -126,6 +127,8 @@ def add_vocabulary(payload: VocabularyCreate):
         pinyin=payload.pinyin,
         definition=payload.definition,
         example=payload.example,
+        example_pinyin=payload.example_pinyin,
+        example_translation=payload.example_translation,
         language=payload.language,
         session_name=payload.session_name,
     )
@@ -194,7 +197,9 @@ def due_vocabulary(
     """
     return [
         VocabularyResponse.from_row(w)
-        for w in get_due_words(created_after=created_after, session_id=session_id, direction=direction)
+        for w in get_due_words(
+            created_after=created_after, session_id=session_id, direction=direction
+        )
     ]
 
 
@@ -235,12 +240,19 @@ def update_vocabulary_content(word_id: int, payload: VocabularyUpdate):
         HTTPException: 404 if word_id not found.
         HTTPException: 409 if the new word+language combination already exists.
     """
+    # Clients that predate the example parts don't send them; keep what is stored
+    # rather than wiping it. An explicit null clears the field.
+    sent = payload.model_fields_set
     try:
         result = update_word(
             word_id=word_id,
             word=payload.word,
             definition=payload.definition,
             example=payload.example,
+            example_pinyin=payload.example_pinyin if "example_pinyin" in sent else UNSET,
+            example_translation=(
+                payload.example_translation if "example_translation" in sent else UNSET
+            ),
         )
     except sqlite3.IntegrityError as err:
         raise HTTPException(
@@ -308,6 +320,8 @@ def upsert_hanzi_bulk(payload: HanziBulkUpsert):
             tone=item.tone,
             definition=item.definition,
             example=item.example,
+            example_pinyin=item.example_pinyin,
+            example_translation=item.example_translation,
             session_name=payload.session_name,
         )
         tally[result["status"]] += 1

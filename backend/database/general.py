@@ -9,6 +9,7 @@ database.heisig.
 """
 
 import os
+import re
 import sqlite3
 from datetime import UTC, date, datetime, timedelta
 
@@ -165,6 +166,37 @@ def _migrate_v5_reverse_srs_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE vocabulary ADD COLUMN {col} {typedef}")
 
 
+def _migrate_v6_example_parts(conn: sqlite3.Connection) -> None:
+    """Split example sentences into hanzi, pinyin and English translation.
+
+    Cards used to keep all three in one `example` string, one per line
+    ("hanzi\\npinyin\\nenglish"). They now have their own columns so the app can
+    show, speak and quiz each part. Existing three-line examples are split in
+    place; anything else (single-line or free-form) is left untouched.
+
+    Args:
+        conn: Open SQLite connection inside the migration transaction.
+    """
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(vocabulary)").fetchall()}
+    for col in ("example_pinyin", "example_translation"):
+        if col not in existing:
+            conn.execute(f"ALTER TABLE vocabulary ADD COLUMN {col} TEXT")
+
+    rows = conn.execute(
+        "SELECT id, example FROM vocabulary "
+        "WHERE example LIKE '%' || char(10) || '%' AND example_pinyin IS NULL"
+    ).fetchall()
+    for row in rows:
+        lines = [ln.strip() for ln in row["example"].splitlines() if ln.strip()]
+        # hanzi sentence first, then pinyin, then the English gloss
+        if len(lines) == 3 and re.search(r"[\u3400-\u9fff]", lines[0]):
+            conn.execute(
+                "UPDATE vocabulary SET example = ?, example_pinyin = ?, example_translation = ? "
+                "WHERE id = ?",
+                (lines[0], lines[1], lines[2], row["id"]),
+            )
+
+
 # Ordered migrations. Index + 1 == the user_version they bring the DB to.
 MIGRATIONS = [
     _migrate_v1_baseline,
@@ -172,6 +204,7 @@ MIGRATIONS = [
     _migrate_v3_primitive_tables,
     _migrate_v4_drop_primitives_and_story,
     _migrate_v5_reverse_srs_columns,
+    _migrate_v6_example_parts,
 ]
 
 # Study directions. "forward" shows the word first; "reverse" shows pinyin first.
@@ -311,6 +344,8 @@ def insert_word(
     example: str | None,
     language: str,
     session_name: str | None = None,
+    example_pinyin: str | None = None,
+    example_translation: str | None = None,
 ) -> dict:
     """Insert a new vocabulary word with SRS metadata.
 
@@ -321,6 +356,8 @@ def insert_word(
         example: Optional example sentence.
         language: Language code or name.
         session_name: Session to assign the word to. Defaults to 'misc'.
+        example_pinyin: Optional pinyin of the example sentence.
+        example_translation: Optional English translation of the example sentence.
 
     Returns:
         Dictionary with word data including id, created_at, SM-2 fields, session_id, session_name.
@@ -333,10 +370,22 @@ def insert_word(
         cursor = conn.execute(
             """
             INSERT INTO vocabulary
-                (word, pinyin, definition, example, language, created_at, next_review, session_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (word, pinyin, definition, example, example_pinyin, example_translation,
+                 language, created_at, next_review, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (word, pinyin, definition, example, language, created_at, next_review, session["id"]),
+            (
+                word,
+                pinyin,
+                definition,
+                example,
+                example_pinyin,
+                example_translation,
+                language,
+                created_at,
+                next_review,
+                session["id"],
+            ),
         )
     return {
         "id": cursor.lastrowid,
@@ -344,6 +393,8 @@ def insert_word(
         "pinyin": pinyin,
         "definition": definition,
         "example": example,
+        "example_pinyin": example_pinyin,
+        "example_translation": example_translation,
         "language": language,
         "created_at": created_at,
         "next_review": next_review,
@@ -385,14 +436,17 @@ def insert_words_bulk(words: list[dict]) -> dict:
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO vocabulary
-                    (word, pinyin, definition, example, language, created_at, next_review, session_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (word, pinyin, definition, example, example_pinyin, example_translation,
+                     language, created_at, next_review, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     w["word"],
                     w["pinyin"],
                     w["definition"],
                     w.get("example"),
+                    w.get("example_pinyin"),
+                    w.get("example_translation"),
                     w.get("language", "unknown"),
                     created_at,
                     next_review,
@@ -407,6 +461,8 @@ def insert_words_bulk(words: list[dict]) -> dict:
                         "pinyin": w["pinyin"],
                         "definition": w["definition"],
                         "example": w.get("example"),
+                        "example_pinyin": w.get("example_pinyin"),
+                        "example_translation": w.get("example_translation"),
                         "language": w.get("language", "unknown"),
                         "created_at": created_at,
                         "next_review": next_review,
@@ -563,15 +619,22 @@ def review_word(word_id: int, quality: int, direction: str = "forward") -> dict 
     }
 
 
+# Marks "field not sent" for update_word, as distinct from None ("clear it").
+UNSET = object()
+
+
 def update_word(
     word_id: int,
     word: str,
     definition: str,
     example: str | None,
+    example_pinyin: str | None | object = UNSET,
+    example_translation: str | None | object = UNSET,
 ) -> dict | None:
     """Update the content fields of a vocabulary word.
 
-    Only touches word, definition, and example — SM-2 state is left intact.
+    Only touches word, definition, example and (when given) the example's
+    pinyin and translation — SM-2 state is left intact.
     Raises sqlite3.IntegrityError if the new word+language combination
     already exists (unique index violation).
 
@@ -580,14 +643,22 @@ def update_word(
         word: New word text.
         definition: New definition text.
         example: New example sentence, or None to clear.
+        example_pinyin: New pinyin for the example, None to clear, or UNSET to keep it.
+        example_translation: New translation for the example, None to clear, or UNSET to keep it.
 
     Returns:
         Updated vocabulary dict with session_name joined, or None if word_id not found.
     """
+    columns = {"word": word, "definition": definition, "example": example}
+    if example_pinyin is not UNSET:
+        columns["example_pinyin"] = example_pinyin
+    if example_translation is not UNSET:
+        columns["example_translation"] = example_translation
+    assignments = ", ".join(f"{col} = ?" for col in columns)
     with get_connection() as conn:
         result = conn.execute(
-            "UPDATE vocabulary SET word = ?, definition = ?, example = ? WHERE id = ?",
-            (word, definition, example, word_id),
+            f"UPDATE vocabulary SET {assignments} WHERE id = ?",
+            (*columns.values(), word_id),
         )
         if result.rowcount == 0:
             return None
