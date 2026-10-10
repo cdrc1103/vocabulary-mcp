@@ -1,4 +1,4 @@
-import { createQuiz, toneWord } from "./drill.js";
+import { createQuiz, exampleBlock, toneWord } from "./drill.js";
 import { isHanzi, pinyinSyllables, speakableText, splitPinyin } from "./pinyin.js";
 import {
   canSpeak,
@@ -520,7 +520,7 @@ function renderCardFaces(card) {
     studyEl.translation.textContent = "";
   }
   studyEl.translation.classList.toggle("hidden", !pinyinFront);
-  studyEl.example.textContent = card.example || "";
+  studyEl.example.replaceChildren(...[exampleBlock(card)].filter(Boolean));
 
   // Pinyin sits on the front in reverse mode, so only show it on the back in
   // normal mode.
@@ -767,12 +767,8 @@ function buildWordItem(word) {
 
   const detail = document.createElement("div");
   detail.className = "word-detail";
-  if (word.example) {
-    const ex = document.createElement("div");
-    ex.className = "word-example";
-    ex.textContent = `"${word.example}"`;
-    detail.appendChild(ex);
-  }
+  const example = exampleBlock(word);
+  if (example) detail.appendChild(example);
   const delBtn = document.createElement("button");
   delBtn.className = "btn-delete";
   delBtn.textContent = "Delete";
@@ -1070,6 +1066,8 @@ const editBackdrop = document.getElementById("edit-sheet-backdrop");
 const editWordInput = document.getElementById("edit-word");
 const editDefInput = document.getElementById("edit-definition");
 const editExInput = document.getElementById("edit-example");
+const editExPyInput = document.getElementById("edit-example-pinyin");
+const editExEnInput = document.getElementById("edit-example-translation");
 const editError = document.getElementById("edit-error");
 const editSaveBtn = document.getElementById("edit-save");
 const editDeleteBtn = document.getElementById("edit-delete");
@@ -1085,6 +1083,8 @@ function openEditSheet() {
   editWordInput.value = card.word || "";
   editDefInput.value = card.definition || "";
   editExInput.value = card.example || "";
+  editExPyInput.value = card.example_pinyin || "";
+  editExEnInput.value = card.example_translation || "";
   editError.classList.add("hidden");
   editBackdrop.setAttribute("aria-hidden", "false");
   editBackdrop.classList.add("open");
@@ -1106,6 +1106,8 @@ async function saveEdit() {
   const word = editWordInput.value.trim();
   const definition = editDefInput.value.trim();
   const example = editExInput.value.trim() || null;
+  const examplePinyin = editExPyInput.value.trim() || null;
+  const exampleTranslation = editExEnInput.value.trim() || null;
 
   if (!word || !definition) {
     editError.textContent = "Word and definition are required.";
@@ -1120,7 +1122,13 @@ async function saveEdit() {
   try {
     const res = await apiFetch(`/vocabulary/${card.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ word, definition, example }),
+      body: JSON.stringify({
+        word,
+        definition,
+        example,
+        example_pinyin: examplePinyin,
+        example_translation: exampleTranslation,
+      }),
     });
 
     if (res.ok) {

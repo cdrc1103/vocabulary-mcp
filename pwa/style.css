@@ -642,7 +642,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .quiz-verdict.ok { color: #1e8449; }
 .quiz-verdict.no { color: var(--danger); }
 .quiz-english { font-size: 1.0625rem; }
-.quiz-example { font-size: 0.9375rem; color: var(--text-2); font-style: italic; }
+
 .quiz-actions { display: flex; gap: 0.5rem; width: 100%; margin-top: 0.75rem; }
 .quiz-actions .btn { flex: 1; }
 @media (prefers-color-scheme: dark) {
@@ -650,3 +650,10 @@ button { -webkit-tap-highlight-color: transparent; }
   .quiz-verdict.ok { color: #4cd47e; }
 }
 @media (hover: none) { .quiz-key { display: none; } }
+
+/* ===== Example sentence: hanzi / pinyin / English ===== */
+.ex-block { display: flex; flex-direction: column; gap: 0.125rem; font-style: normal; text-align: center; }
+.ex-zh { font-size: 1.125rem; font-weight: 500; white-space: pre-line; }
+.ex-py { font-size: 0.9375rem; color: var(--text-2); }
+.ex-en { font-size: 0.9375rem; }
+.word-detail .ex-block { text-align: left; margin: 0 0 0.75rem; }

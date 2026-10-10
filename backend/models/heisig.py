@@ -32,6 +32,8 @@ class HanziUpsert(BaseModel):
         tone: Tone number 1-5 (5 = neutral).
         definition: Meaning/usage for a new card; ignored on enrich. NOT for pinyin.
         example: Optional usage sentence for a new card; ignored on enrich.
+        example_pinyin: Optional pinyin of the example; new cards only.
+        example_translation: Optional English translation of the example; new cards only.
     """
 
     word: str
@@ -40,6 +42,8 @@ class HanziUpsert(BaseModel):
     tone: int = Field(ge=1, le=5)
     definition: str | None = None
     example: str | None = None
+    example_pinyin: str | None = None
+    example_translation: str | None = None
 
 
 class HanziBulkUpsert(BaseModel):

@@ -40,6 +40,20 @@ export function toneWord(word, pinyin, className = "") {
   return el;
 }
 
+// The example sentence as up to three lines: hanzi, pinyin, English. Cards saved
+// before the parts were split out keep whatever text they had in `example`
+// (line breaks preserved). Returns null when the card has no example.
+export function exampleBlock(card) {
+  if (!card.example) return null;
+  return h(
+    "div",
+    { class: "ex-block" },
+    h("p", { class: "ex-zh", lang: "zh-Hans", text: card.example }),
+    card.example_pinyin ? h("p", { class: "ex-py", text: card.example_pinyin }) : null,
+    card.example_translation ? h("p", { class: "ex-en", text: card.example_translation }) : null
+  );
+}
+
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -261,7 +275,7 @@ export function createQuiz(root, hooks) {
       toneWord(card.word, pinyin, "quiz-hanzi quiz-hanzi-sm"),
       pinyin ? h("p", { class: "quiz-pinyin", text: pinyin }) : null,
       h("p", { class: "quiz-english", text: english }),
-      card.example ? h("p", { class: "quiz-example", text: card.example }) : null,
+      exampleBlock(card),
       h(
         "div",
         { class: "quiz-actions" },
