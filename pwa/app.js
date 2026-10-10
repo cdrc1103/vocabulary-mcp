@@ -1,3 +1,16 @@
+import { createQuiz, toneWord } from "./drill.js";
+import { isHanzi, pinyinSyllables, speakableText, splitPinyin } from "./pinyin.js";
+import {
+  canSpeak,
+  getSettings,
+  onVoiceChange,
+  setSetting,
+  speak,
+  speakCard,
+  stopSpeaking,
+  voiceStatus,
+} from "./speech.js";
+
 // ── API config ────────────────────────────────────────────────────────────────
 const API_URL = "/api";
 
@@ -102,6 +115,8 @@ const views = {
 };
 
 function showView(name) {
+  stopSpeaking();
+  quiz.stop();
   Object.values(views).forEach((v) => v.classList.add("hidden"));
   views[name].classList.remove("hidden");
 }
@@ -127,6 +142,15 @@ const HEISIG_KEY = "vocab_include_heisig";
 let includeHeisig = true; // false hides Heisig hanzi cards from counts and study
 try {
   includeHeisig = localStorage.getItem(HEISIG_KEY) !== "false";
+} catch {
+  // storage unavailable — keep default
+}
+
+// What "Start studying" launches: flashcards or the multiple-choice quiz.
+const ACTIVITY_KEY = "vocab_activity";
+let activity = "cards";
+try {
+  if (localStorage.getItem(ACTIVITY_KEY) === "quiz") activity = "quiz";
 } catch {
   // storage unavailable — keep default
 }
@@ -341,7 +365,29 @@ const studyEl = {
   translation: document.getElementById("card-translation"),
   ratings: document.getElementById("rating-buttons"),
   hint: document.querySelector(".card-hint"),
+  speak: document.getElementById("card-speak"),
+  quiz: document.getElementById("quiz-area"),
+  notice: document.getElementById("study-notice"),
 };
+
+const quiz = createQuiz(studyEl.quiz, {
+  submitReview,
+  onProgress: (text) => {
+    studyEl.progress.textContent = text;
+  },
+  onFinish: (count) => {
+    reviewedCount = count;
+    studyEl.quiz.classList.add("hidden");
+    showStudyDone();
+  },
+});
+
+// Full deck (not just due cards) so quiz answers have plausible wrong options.
+async function fetchDeck() {
+  const res = await apiFetch("/vocabulary?limit=1000");
+  if (!res.ok) throw new Error("Failed to load deck");
+  return applyHeisigFilter((await res.json()).words);
+}
 
 // reverse param allows callers to override the toggle state (e.g. study-again preserves mode)
 async function loadStudy(reverse = false) {
@@ -353,8 +399,13 @@ async function loadStudy(reverse = false) {
   studyEl.empty.classList.add("hidden");
   studyEl.done.classList.add("hidden");
   studyEl.area.classList.add("hidden");
+  studyEl.quiz.classList.add("hidden");
+  studyEl.notice.classList.add("hidden");
   studyEl.progress.textContent = "";
+  stopSpeaking();
+  quiz.stop();
 
+  let deck = [];
   try {
     const params = new URLSearchParams();
     if (createdAfter) params.set("created_after", createdAfter);
@@ -363,6 +414,7 @@ async function loadStudy(reverse = false) {
     const res = await apiFetch(`/vocabulary/due?${params}`);
     if (!res.ok) throw new Error("Failed to load due words");
     dueCards = shuffle(applyHeisigFilter(await res.json()));
+    if (activity === "quiz" && dueCards.length > 0) deck = await fetchDeck();
   } catch {
     studyEl.loading.classList.add("hidden");
     showErrorMsg(
@@ -382,6 +434,18 @@ async function loadStudy(reverse = false) {
 
   currentCardIndex = 0;
   reviewedCount = 0;
+
+  if (activity === "quiz") {
+    if (deck.length < 4) {
+      studyEl.notice.textContent =
+        "The quiz needs at least 4 words in your deck. Try flashcards for now.";
+      studyEl.notice.classList.remove("hidden");
+      return;
+    }
+    studyEl.quiz.classList.remove("hidden");
+    quiz.start(dueCards, deck, reverseMode);
+    return;
+  }
   showCard();
 }
 
@@ -409,6 +473,17 @@ function showCard() {
 
   studyEl.ratings.classList.add("hidden");
   studyEl.area.classList.remove("hidden");
+
+  // In reverse mode the word is the answer, so its speaker waits for the flip.
+  stopSpeaking();
+  updateCardSpeaker(card);
+  if (!reverseMode && getSettings().audioFirst && getSettings().autoplay) speak(card.word);
+}
+
+function updateCardSpeaker(card) {
+  const flipped = flashcard.classList.contains("flipped");
+  const hasAudio = canSpeak() && !!speakableText(card.word);
+  studyEl.speak.classList.toggle("hidden", !hasAudio || (reverseMode && !flipped));
 }
 
 // Fill both faces of the card for the current mode.
@@ -416,22 +491,6 @@ function showCard() {
 // Reverse: front pinyin only, back hanzi + English translation + example.
 // Cards with no recoverable pinyin fall back to definition on the front and
 // the word on the back.
-// Split a card into its pinyin and English parts. New cards carry pinyin in a
-// dedicated field (card.pinyin; Heisig cards also in heisig.pinyin). Legacy
-// regular cards stored "pinyin | english" in the definition, so that is kept as
-// a backup. Returns pinyin: "" when the card has no pinyin to show.
-function splitPinyin(card) {
-  const definition = card.definition || "";
-  const stored = card.pinyin || (card.heisig && card.heisig.pinyin);
-  if (stored) return { pinyin: stored, english: definition };
-  const sep = definition.indexOf(" | ");
-  if (sep === -1) return { pinyin: "", english: definition };
-  return {
-    pinyin: definition.slice(0, sep).trim(),
-    english: definition.slice(sep + 3).trim(),
-  };
-}
-
 function renderCardFaces(card) {
   const heisig = card.heisig;
   const toneClass = heisig ? `tone-${heisig.tone || 5}` : "";
@@ -443,6 +502,7 @@ function renderCardFaces(card) {
     studyEl.word.className = `card-word ${toneClass}`.trim();
     studyEl.definition.textContent = card.word || "";
     studyEl.definition.className = `card-definition ${toneClass}`.trim();
+    if (!heisig) studyEl.definition.replaceChildren(toneWord(card.word || "", pinyin));
     studyEl.translation.textContent = english;
   } else if (reverseMode) {
     studyEl.word.textContent = card.definition || "";
@@ -464,17 +524,33 @@ function renderCardFaces(card) {
 
   // Pinyin sits on the front in reverse mode, so only show it on the back in
   // normal mode.
-  renderPinyinBlock(pinyin, heisig ? heisig.tone || 5 : null, !reverseMode && !!pinyin);
+  renderPinyinBlock(pinyin, heisig ? heisig.tone || 5 : null, !reverseMode && !!pinyin, card);
 }
 
 // Populate or hide the pinyin block on the card back. Tone colouring needs a
 // tone number, which only Heisig cards have; other cards use the neutral tone.
-function renderPinyinBlock(pinyin, tone, show) {
+function renderPinyinBlock(pinyin, tone, show, card) {
   studyEl.pinyinBlock.classList.toggle("hidden", !show);
   if (!show) return;
 
   studyEl.pinyin.textContent = pinyin;
   studyEl.pinyin.className = `card-pinyin tone-${tone || 5}`;
+  // Multi-syllable words: colour each syllable by its own tone. Skipped for
+  // Heisig cards (one character, one tone) and pinyin that doesn't split cleanly.
+  if (card && !card.heisig && !/[()（）]/.test(pinyin)) {
+    const spans = pinyinSyllables(pinyin, [...(card.word || "")].filter(isHanzi).length);
+    if (spans) {
+      studyEl.pinyin.className = "card-pinyin";
+      studyEl.pinyin.replaceChildren(
+        ...spans.flatMap((syl, i) => {
+          const el = document.createElement("span");
+          el.className = `tone-${syl.tone}`;
+          el.textContent = syl.text;
+          return syl.gap && i > 0 ? [" ", el] : [el];
+        })
+      );
+    }
+  }
 }
 
 // Flip card on tap / keyboard
@@ -500,7 +576,8 @@ document.addEventListener("keydown", (e) => {
     e.key === " " &&
     document.activeElement !== flashcard &&
     !isEditableElement(document.activeElement) &&
-    !views.study.classList.contains("hidden")
+    !views.study.classList.contains("hidden") &&
+    !studyEl.area.classList.contains("hidden")
   ) {
     e.preventDefault();
     flipCard();
@@ -510,7 +587,17 @@ document.addEventListener("keydown", (e) => {
 function flipCard() {
   const isFlipped = flashcard.classList.toggle("flipped");
   studyEl.ratings.classList.toggle("hidden", !isFlipped);
+  const card = dueCards[currentCardIndex];
+  if (card) {
+    updateCardSpeaker(card);
+    if (isFlipped && getSettings().autoplay) speakCard(card);
+  }
 }
+
+studyEl.speak.addEventListener("click", () => {
+  const card = dueCards[currentCardIndex];
+  if (card) speakCard(card);
+});
 
 // Rating buttons
 studyEl.ratings.addEventListener("click", async (e) => {
@@ -552,6 +639,11 @@ const browseList = document.getElementById("browse-list");
 browseList.addEventListener("click", async (e) => {
   const item = e.target.closest(".word-item");
   if (!item) return;
+
+  if (e.target.closest(".btn-speak")) {
+    speak(item.dataset.speak);
+    return;
+  }
 
   if (e.target.closest(".btn-delete")) {
     const wordName = item.querySelector(".word-title").textContent;
@@ -661,7 +753,17 @@ function buildWordItem(word) {
 
   const summary = document.createElement("div");
   summary.className = "word-summary";
-  summary.append(wordText, wordDue, expandIcon);
+  summary.append(wordText);
+  if (speakableText(word.word)) {
+    item.dataset.speak = word.word;
+    const speakBtn = document.createElement("button");
+    speakBtn.className = "btn-icon btn-speak";
+    speakBtn.type = "button";
+    speakBtn.textContent = "🔊";
+    speakBtn.setAttribute("aria-label", `Hear ${word.word}`);
+    summary.append(speakBtn);
+  }
+  summary.append(wordDue, expandIcon);
 
   const detail = document.createElement("div");
   detail.className = "word-detail";
@@ -887,6 +989,73 @@ heisigSwitch.addEventListener("click", () => {
   refreshDueCount();
 });
 syncHeisigToggle();
+
+// ── Activity (cards / quiz) ───────────────────────────────────────────────────
+const activityToggle = document.getElementById("activity-toggle");
+const studyCta = document.getElementById("btn-study");
+
+function syncActivity() {
+  activityToggle.querySelectorAll(".seg-btn").forEach((b) => {
+    const on = b.dataset.activity === activity;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+  studyCta.firstChild.textContent = activity === "quiz" ? "Start quiz " : "Start studying ";
+}
+
+activityToggle.addEventListener("click", (e) => {
+  const btn = e.target.closest(".seg-btn");
+  if (!btn) return;
+  activity = btn.dataset.activity;
+  try {
+    localStorage.setItem(ACTIVITY_KEY, activity);
+  } catch {
+    // storage unavailable — choice lasts for this page load only
+  }
+  syncActivity();
+});
+syncActivity();
+
+// ── Audio settings ────────────────────────────────────────────────────────────
+const autoplaySwitch = document.getElementById("autoplay-toggle");
+const audioFirstSwitch = document.getElementById("audiofirst-toggle");
+const rateToggle = document.getElementById("rate-toggle");
+const voiceStatusEl = document.getElementById("voice-status");
+
+function syncAudioSettings() {
+  const cfg = getSettings();
+  autoplaySwitch.setAttribute("aria-checked", String(cfg.autoplay));
+  audioFirstSwitch.setAttribute("aria-checked", String(cfg.audioFirst));
+  rateToggle.querySelectorAll(".seg-btn").forEach((b) => {
+    const on = Number(b.dataset.rate) === cfg.rate;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+  const status = voiceStatus();
+  voiceStatusEl.textContent = status.text;
+  voiceStatusEl.classList.toggle("warn", !status.ok);
+}
+
+autoplaySwitch.addEventListener("click", () => {
+  setSetting("autoplay", !getSettings().autoplay);
+  syncAudioSettings();
+});
+audioFirstSwitch.addEventListener("click", () => {
+  setSetting("audioFirst", !getSettings().audioFirst);
+  syncAudioSettings();
+});
+rateToggle.addEventListener("click", (e) => {
+  const btn = e.target.closest(".seg-btn");
+  if (!btn) return;
+  setSetting("rate", Number(btn.dataset.rate));
+  syncAudioSettings();
+  speak("你好");
+});
+document
+  .getElementById("btn-voice-test")
+  .addEventListener("click", () => speak("你好，欢迎学习中文"));
+onVoiceChange(syncAudioSettings);
+syncAudioSettings();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (getToken()) {
